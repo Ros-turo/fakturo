@@ -1,0 +1,81 @@
+<head>
+    <meta charset="UTF-8">
+    <style>
+        table {width: 45%;}
+        td {padding: 5px; }
+    </style>
+</head>
+
+<h2>Faktura č. {{ invoice.invoice_number}} </h2>
+<table>
+    <tr>
+        <td>Datum vystaveni: </td>
+        <td>{{invoice.issue_date}}</td>
+    </tr>
+    <tr>
+        <td>Datum splatnosti:</td>
+        <td>{{invoice.due_date}}</td>
+    </tr>
+</table>
+<h3>Dodavatel: </h3>
+<table>
+    <tr>
+        <td>Jméno: </td>
+        <td>{{invoice.owner.name}}</td>
+    </tr>
+    <tr>
+        <td>Adresa</td>
+        <td>{{invoice.owner.street}} {{invoice.owner.house_number}},
+            {{invoice.owner.city}},{{invoice.owner.psc}}</td>
+    </tr>
+    <tr>
+        <td>IČO</td>
+        <td>{{invoice.owner.ico}}</td>
+    </tr>
+    <tr>
+        <td>DIČ</td>
+        <td>{{invoice.owner.dic}}</td>
+    </tr>
+</table>
+
+<h3>Odběratel: </h3>
+<table>
+    <tr>
+        <td>Jméno: </td>
+        <td>{{invoice.client.name}}</td>
+    </tr>
+    <tr>
+        <td>Adresa</td>
+        <td>{{invoice.client.street}} {{invoice.client.house_number}},
+            {{invoice.client.city}},{{invoice.client.psc}}</td>
+    </tr>
+    <tr>
+        <td>IČO</td>
+        <td>{{invoice.client.ico}}</td>
+    </tr>
+    <tr>
+        <td>DIČ</td>
+        <td>{{invoice.client.dic}}</td>
+    </tr>
+</table>
+<h3>Seznam položek: </h3>
+
+<table>
+    <tr><th>Popis</th>
+        <th>Jednotková cena</th>
+        <th>Mnozstvi</th>
+        <th>DPH</th>
+    </tr>
+
+    {% for item in invoice.invoice_items %}
+    <tr>
+        <td>{{item.description}}</td>
+        <td>{{item.unit_price}}</td>
+        <td>{{item.quantity}}</td>
+        <td>DPH - {{item.vat_rate}}</td>
+    </tr>
+
+    {% endfor %}
+</table>
+
+<!--celková částka bez DPH, DPH, celková částka s DPH-->
