@@ -21,7 +21,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now)
 
     clients = relationship("Client", back_populates="owner")
     invoices = relationship("Invoice", back_populates="owner")
@@ -40,7 +40,7 @@ class Client(Base):
     house_number = Column(String, nullable=True)
     vat = Column(Boolean, default=False)
     phone_number = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now)
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
@@ -55,7 +55,7 @@ class Invoice(Base):
     issue_date = Column(Date, server_default=func.current_date(), nullable=False)
     due_date = Column(Date, nullable=False)
     status = Column(SEnum(Status), nullable=False, default=Status.draft)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now)
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
