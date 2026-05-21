@@ -10,6 +10,6 @@ def info():
 
     return {"msg": {
         "API": "Facturo",
-        "Version": "0.1",
+        "Version": "0.2-branch-B",
         "Running": "run"
     }, "status": "ok"}
