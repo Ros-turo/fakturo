@@ -1,10 +1,16 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 from schemas import Status
 
 
+invoice_tags = Table(
+    "invoice_tags",
+    Base.metadata,
+    Column("invoice_id", ForeignKey("invoices.id"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id"), primary_key=True)
+)
 
 class User(Base):
     __tablename__ = 'users'
@@ -25,6 +31,7 @@ class User(Base):
 
     clients = relationship("Client", back_populates="owner")
     invoices = relationship("Invoice", back_populates="owner")
+
 
 class Client(Base):
     __tablename__ = "clients"
@@ -63,6 +70,7 @@ class Invoice(Base):
     owner = relationship("User", back_populates="invoices")
     client = relationship("Client", back_populates="invoices")
     invoice_items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+    tags = relationship("Tag", secondary=invoice_tags, back_populates="invoices")
 
 class InvoiceItem(Base):
     __tablename__ = "invoiceitems"
@@ -76,4 +84,13 @@ class InvoiceItem(Base):
 
     invoice = relationship("Invoice", back_populates="invoice_items")
 
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    invoices = relationship("Invoice", secondary=invoice_tags, back_populates="tags")
 
