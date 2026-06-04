@@ -1,7 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
-from fastapi.params import Depends
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 
@@ -42,10 +41,15 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
-@router.post('/register')
-async def register(user_data: UserCreate, db: DBSession):
+def get_user_repo(db:DBSession)->UserRepository:
+    user_repo = UserRepository(db)
+    return user_repo
 
-    repo = UserRepository(db)
+UserDepends = Annotated[UserRepository, Depends(get_user_repo)]
+
+@router.post('/register')
+async def register(user_data: UserCreate, repo: UserDepends):
+
     user_exist = await repo.get_by_email(user_data.email)
     if user_exist:
         raise HTTPException(status_code=400, detail="Account with this email already exist")
@@ -59,9 +63,8 @@ async def register(user_data: UserCreate, db: DBSession):
 
 @router.post('/login')
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-          db: DBSession):
+                repo: UserDepends):
 
-    repo = UserRepository(db)
     current_user = await repo.get_by_email(form_data.username)
     if not current_user or not verify_password(form_data.password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")

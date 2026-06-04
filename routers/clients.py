@@ -1,18 +1,22 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, HTTPException
+
+from repositories.client_repository import ClientRepo
 from schemas import ClientCreate, ClientResponse, ClientAres
 from routers.auth import CurrentUser
-from database import get_db, DBSession
+from database import DBSession
 from db_models import  Client
-from sqlalchemy.orm import Session
 import httpx
 
 
 router = APIRouter(prefix='/clients', tags=['clients'])
 
 
+def get_client_repo(db: DBSession)-> ClientRepo:
+    return ClientRepo(db)
 
+ClientDepends = Annotated[ClientRepo, Depends(get_client_repo)]
 
 def ares_parsing(data:dict):
     dic = data.get("dic",None)
@@ -41,36 +45,31 @@ async def get_ico(ico: Annotated[str, Path(pattern=r'\d{8}')], user: CurrentUser
     return new_client
 
 @router.get('/', response_model=list[ClientResponse])
-def get_clients(user: CurrentUser, db: DBSession):
+async def get_clients(user: CurrentUser, repo: ClientDepends):
     uid = user["uid"]
-    clients: list[Client] = db.query(Client).filter(Client.owner_id == uid).all()
+    clients: list[Client] = await repo.get_all_clients(uid)
     return clients
 
 @router.get('/{client_id}', response_model=ClientResponse)
-def get_client(client_id: int, user: CurrentUser, db: DBSession):
+async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
     uid = user['uid']
-    client: Client | None = db.query(Client).filter(Client.owner_id == uid, Client.id == client_id).first()
+    client: Client | None = await repo.get_one_client(uid=uid, client_id=client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Not found")
     return client
 
 @router.post('/', response_model=ClientResponse)
-def create_client(client: ClientCreate, user: CurrentUser,
-                  db: DBSession):
+async def create_client(client: ClientCreate, user: CurrentUser,
+                  repo: ClientDepends):
 
-    user_id = user['uid']
+    uid = user['uid']
     new_client = Client(**client.model_dump(),
-                        owner_id=user_id)
-    db.add(new_client)
-    db.commit()
-    db.refresh(new_client)
-    return new_client
+                        owner_id=uid)
+    return await repo.create_client(new_client)
 
 @router.delete("/{client_id}", status_code=204)
-def delete_client(client_id: int, user:CurrentUser, db:DBSession):
+async def delete_client(client_id: int, user:CurrentUser, repo: ClientDepends):
     uid = user["uid"]
-    client = db.query(Client).filter(Client.owner_id == uid, Client.id == client_id).first()
+    client = await repo.delete_client(uid=uid, client_id=client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Not found")
-    db.delete(client)
-    db.commit()
