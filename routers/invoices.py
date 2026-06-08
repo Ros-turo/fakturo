@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Path, HTTPException, Response
+from fastapi import APIRouter, Path, HTTPException, Response, Depends
 from routers.auth import CurrentUser
 from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status
 from db_models import Invoice, InvoiceItem
+from repositories.invoice_repository import InvoiceRepo
 from database import DBSession
 from pdf import invoice_pdf
 
@@ -11,41 +12,38 @@ from pdf import invoice_pdf
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
+def get_invoice_repo(db: DBSession):
+    return InvoiceRepo(db)
+
+InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
+
 @router.post("/", response_model=InvoiceResponse)
-def create_invoice(user: CurrentUser, invoice: InvoiceCreate,
-                   db:DBSession):
+async def create_invoice(user: CurrentUser, invoice: InvoiceCreate,
+                   repo:InvoiceDepends):
 
     uid = user["uid"]
-    invoice_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}),
-        owner_id=uid
-    )
-    db.add(invoice_db)
-    db.flush()
-    for item in invoice.invoice_items:
-        item_db = InvoiceItem(**item.model_dump(), invoice_id=invoice_db.id)
-        db.add(item_db)
-    db.commit()
-    db.refresh(invoice_db)
-    return invoice_db
+    return await repo.create_invoice(uid=uid, invoice=invoice)
 
 @router.get("/", response_model=list[InvoiceResponse])
-def get_invoices(user: CurrentUser, db:DBSession):
+async def get_invoices(user: CurrentUser, repo: InvoiceDepends):
     uid = user["uid"]
-    responses = db.query(Invoice).filter(Invoice.owner_id == uid).all()
+    responses = await repo.get_all_invoices(uid=uid)
     return responses
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)], user: CurrentUser, db: DBSession):
+async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],
+                          user: CurrentUser, repo: InvoiceDepends):
     uid = user["uid"]
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id, Invoice.owner_id == uid).first()
+    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Not found")
     return invoice
 
 @router.get("/{invoice_id}/pdf")
-def invoice_to_pdf(user: CurrentUser, db: DBSession, invoice_id: int):
+async def invoice_to_pdf(user: CurrentUser, invoice_id: int,
+                   repo: InvoiceDepends):
     uid = user["uid"]
-    invoice = db.query(Invoice).filter( Invoice.id == invoice_id, Invoice.owner_id == uid).first()
+    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Not found")
     pdf = invoice_pdf(invoice)
@@ -56,14 +54,12 @@ def invoice_to_pdf(user: CurrentUser, db: DBSession, invoice_id: int):
     )
 
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
-def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentUser, db: DBSession,
-                  new_status: Status):
+async def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentUser,
+                  new_status: Status, repo: InvoiceDepends):
     uid = user["uid"]
-    invoice = db.query(Invoice).filter(Invoice.owner_id == uid, Invoice.id == invoice_id).first()
+    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Not found")
-    invoice.status = new_status
-    db.commit()
-    db.refresh(invoice)
-    return invoice
+    await repo.change_invoice_status(invoice=invoice, new_status=new_status)
+    return await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
 
