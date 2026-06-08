@@ -1,6 +1,6 @@
 from sqlalchemy.orm import selectinload
 
-from db_models import Tag, Invoice
+from db_models import Tag, Invoice, InvoiceTag
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,20 +30,21 @@ class TagRepo:
 
     async def add_tag_to_invoice(self, invoice_id: int, tag_id: int, uid: int) -> Invoice | None:
         tag_result = await self.db.execute(select(Tag)
-                                           .where(Tag.id == tag_id, Tag.owner_id == uid))
-        tag: Tag = tag_result.scalar_one_or_none()
-
-        if not tag:
-            return None
+                                                .where(Tag.id == tag_id, Tag.owner_id == uid))
+        tag = tag_result.scalar_one_or_none()
 
         invoice_result = await self.db.execute(select(Invoice)
-                                       .options(selectinload(Invoice.tags))
-                                       .where(Invoice.id == invoice_id))
-        invoice: Invoice = invoice_result.scalar_one_or_none()
+                                               .options(selectinload(Invoice.tags))
+                                               .where(Invoice.id == invoice_id))
 
-        if not invoice:
+        invoice = invoice_result.scalar_one_or_none()
+
+        if tag is None or invoice is None:
             return None
 
-        invoice.tags.append(tag)
+        tag_in_invoice = InvoiceTag(invoice_id=invoice_id, tag_id=tag_id)
+
+        self.db.add(tag_in_invoice)
         await self.db.commit()
         return invoice
+

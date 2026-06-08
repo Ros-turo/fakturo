@@ -4,14 +4,6 @@ from sqlalchemy.sql import func
 from database import Base
 from schemas import Status
 
-
-invoice_tags = Table(
-    "invoice_tags",
-    Base.metadata,
-    Column("invoice_id", ForeignKey("invoices.id"), primary_key=True),
-    Column("tag_id", ForeignKey("tags.id"), primary_key=True)
-)
-
 class User(Base):
     __tablename__ = 'users'
 
@@ -70,7 +62,7 @@ class Invoice(Base):
     owner = relationship("User", back_populates="invoices")
     client = relationship("Client", back_populates="invoices")
     invoice_items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
-    tags = relationship("Tag", secondary=invoice_tags, back_populates="invoices")
+    tags = relationship("InvoiceTag", back_populates="invoice")
 
 class InvoiceItem(Base):
     __tablename__ = "invoiceitems"
@@ -84,7 +76,15 @@ class InvoiceItem(Base):
 
     invoice = relationship("Invoice", back_populates="invoice_items")
 
+class InvoiceTag(Base):
+    __tablename__ = "invoice_tags"
 
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("tags.id"), primary_key=True)
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    invoice = relationship("Invoice", back_populates="tags")
+    tag = relationship("Tag", back_populates="invoices")
 
 class Tag(Base):
     __tablename__ = "tags"
@@ -92,5 +92,5 @@ class Tag(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    invoices = relationship("Invoice", secondary=invoice_tags, back_populates="tags")
+    invoices = relationship("InvoiceTag", back_populates="tag")
 
