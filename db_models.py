@@ -55,6 +55,7 @@ class Invoice(Base):
     due_date = Column(Date, nullable=False)
     status = Column(SEnum(Status), nullable=False, default=Status.draft)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    total_amount = Column(Numeric(10,2), nullable=True)
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
@@ -65,7 +66,7 @@ class Invoice(Base):
     tags = relationship("InvoiceTag", back_populates="invoice")
 
 class InvoiceItem(Base):
-    __tablename__ = "invoiceitems"
+    __tablename__ = "invoice_items"
 
     id = Column(Integer, primary_key=True)
     description = Column(String, nullable=False)

@@ -47,6 +47,7 @@ class Status(str, Enum):
     draft = "draft"
     sent = "sent"
     paid = "paid"
+    overdue = "overdue"
 
 class InvoiceCreate(BaseModel):
 
@@ -61,6 +62,7 @@ class InvoiceResponse(InvoiceCreate):
     status: Status
     created_at: datetime
     invoice_items: list[InvoiceItemResponse]
+    total_amount: Decimal
     owner_id: int
 
     model_config = ConfigDict(from_attributes=True)
