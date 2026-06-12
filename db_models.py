@@ -3,7 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, Fore
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
-from schemas import Status
+from schemas import Status, Action
 
 class User(Base):
     __tablename__ = 'users'
@@ -110,7 +110,7 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True)
     table_name = Column(String, nullable=False)
     row_id = Column(Integer, nullable=False)
-    action = Column(String, nullable=False)
+    action = Column(SEnum(Action), nullable=False)
     old_value = Column(String, nullable=True)
     new_value = Column(String, nullable=True)
     changed_at = Column(DateTime(timezone=True), server_default=func.now())

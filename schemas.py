@@ -49,6 +49,11 @@ class Status(str, Enum):
     paid = "paid"
     overdue = "overdue"
 
+class Action(str, Enum):
+    update = "UPDATE"
+    insert = "INSERT"
+    delete = "DELETE"
+
 class InvoiceCreate(BaseModel):
 
     invoice_number: str

@@ -5,8 +5,8 @@ from sqlalchemy import select, func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
-from db_models import Invoice, InvoiceItem
-from schemas import InvoiceCreate, Status
+from db_models import Invoice, InvoiceItem, AuditLog
+from schemas import InvoiceCreate, Status, Action
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -49,6 +49,14 @@ class InvoiceRepo:
         return invoice
 
     async def change_invoice_status(self, invoice: Invoice, new_status: Status) -> None:
+        new_log= AuditLog(
+            table_name=invoice.__tablename__,
+            row_id=invoice.id,
+            action=Action.update,
+            old_value=str(invoice.status),
+            new_value=str(new_status)
+        )
+        self.db.add(new_log)
         invoice.status = new_status
         self.db.add(invoice)
         await self.db.commit()
