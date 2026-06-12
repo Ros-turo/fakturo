@@ -1,10 +1,9 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum, Table, \
+    UniqueConstraint, event
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
-from schemas import Status
-
-
+from schemas import Status, Action
 
 class User(Base):
     __tablename__ = 'users'
@@ -25,6 +24,7 @@ class User(Base):
 
     clients = relationship("Client", back_populates="owner")
     invoices = relationship("Invoice", back_populates="owner")
+
 
 class Client(Base):
     __tablename__ = "clients"
@@ -56,6 +56,7 @@ class Invoice(Base):
     due_date = Column(Date, nullable=False)
     status = Column(SEnum(Status), nullable=False, default=Status.draft)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    total_amount = Column(Numeric(10,2), nullable=True)
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
@@ -63,9 +64,16 @@ class Invoice(Base):
     owner = relationship("User", back_populates="invoices")
     client = relationship("Client", back_populates="invoices")
     invoice_items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+    tags = relationship("InvoiceTag", back_populates="invoice")
+
+@event.listens_for(Invoice.status, "set")
+def on_status_change(target, value, oldvalue, _):
+    if str(oldvalue) != "NEVER_SET":
+        print(f"{target} change value {oldvalue} -> {value}")
+    return None
 
 class InvoiceItem(Base):
-    __tablename__ = "invoiceitems"
+    __tablename__ = "invoice_items"
 
     id = Column(Integer, primary_key=True)
     description = Column(String, nullable=False)
@@ -75,5 +83,36 @@ class InvoiceItem(Base):
     invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
 
     invoice = relationship("Invoice", back_populates="invoice_items")
+
+class InvoiceTag(Base):
+    __tablename__ = "invoice_tags"
+
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("tags.id"), primary_key=True)
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    invoice = relationship("Invoice", back_populates="tags")
+    tag = relationship("Tag", back_populates="invoices")
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    __table_args__ = (UniqueConstraint("name","owner_id", name="uq_tag_name_owner"),)
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    invoices = relationship("InvoiceTag", back_populates="tag")
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True)
+    table_name = Column(String, nullable=False)
+    row_id = Column(Integer, nullable=False)
+    action = Column(SEnum(Action), nullable=False)
+    old_value = Column(String, nullable=True)
+    new_value = Column(String, nullable=True)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
