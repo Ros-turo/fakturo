@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum, Table, \
-    UniqueConstraint
+    UniqueConstraint, event
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -66,6 +66,12 @@ class Invoice(Base):
     invoice_items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
     tags = relationship("InvoiceTag", back_populates="invoice")
 
+@event.listens_for(Invoice.status, "set")
+def on_status_change(target, value, oldvalue, _):
+    if str(oldvalue) != "NEVER_SET":
+        print(f"{target} change value {oldvalue} -> {value}")
+    return None
+
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
 
@@ -97,4 +103,16 @@ class Tag(Base):
     name = Column(String, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     invoices = relationship("InvoiceTag", back_populates="tag")
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True)
+    table_name = Column(String, nullable=False)
+    row_id = Column(Integer, nullable=False)
+    action = Column(String, nullable=False)
+    old_value = Column(String, nullable=True)
+    new_value = Column(String, nullable=True)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
