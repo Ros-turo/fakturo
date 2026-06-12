@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum, Table
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum, Table, \
+    UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -89,6 +90,8 @@ class InvoiceTag(Base):
 
 class Tag(Base):
     __tablename__ = "tags"
+
+    __table_args__ = (UniqueConstraint("name","owner_id", name="uq_tag_name_owner"),)
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)

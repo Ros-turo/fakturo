@@ -1,3 +1,4 @@
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Tag, Invoice, InvoiceTag
@@ -47,4 +48,11 @@ class TagRepo:
         self.db.add(tag_in_invoice)
         await self.db.commit()
         return invoice
+
+    async def bulk_upsert_tags(self, tags: list[str], owner_id: int) -> list[Tag]:
+        stmt = insert(Tag).values([{"owner_id": owner_id, "name": name} for name in tags])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["name","owner_id"])
+        await self.db.execute(stmt)
+        await self.db.commit()
+        return await  self.get_all_tags(owner_id=owner_id)
 

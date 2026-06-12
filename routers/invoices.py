@@ -30,6 +30,18 @@ async def get_invoices(user: CurrentUser, repo: InvoiceDepends):
     responses = await repo.get_all_invoices(uid=uid)
     return responses
 
+@router.get("/total_sum")
+async def total_sum_of_invoices(user: CurrentUser, repo:InvoiceDepends):
+    uid = user["uid"]
+    result = await repo.get_invoice_summary(uid=uid)
+    return result
+
+@router.get("/update_overdue")
+async def update_overdue(user: CurrentUser, repo: InvoiceDepends):
+    uid = user["uid"]
+    result = await repo.update_overdue_invoices(uid=uid)
+    return result
+
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],
                           user: CurrentUser, repo: InvoiceDepends):
@@ -62,4 +74,5 @@ async def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentUse
         raise HTTPException(status_code=404, detail="Not found")
     await repo.change_invoice_status(invoice=invoice, new_status=new_status)
     return await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
+
 

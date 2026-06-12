@@ -1,8 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from dns import update
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem
@@ -21,9 +21,10 @@ class InvoiceRepo:
         self.db.add(invoice_in_db)
         await self.db.flush()
 
-        for item in invoice.invoice_items:
-            item_in_db = InvoiceItem(**item.model_dump(), invoice_id=invoice_in_db.id)
-            self.db.add(item_in_db)
+        await self.db.execute(insert(InvoiceItem)
+                              .values([{"invoice_id": invoice_in_db.id,
+                                                     **item.model_dump()}
+                                                    for item in invoice.invoice_items]))
         await self.db.commit()
         result = await self.db.execute(select(Invoice)
                                        .options(selectinload(Invoice.invoice_items))
@@ -64,8 +65,7 @@ class InvoiceRepo:
         stmt = (update(Invoice)
                 .where(Invoice.owner_id == uid,
                        Invoice.due_date < date.today(),
-                       Invoice.status == Status.sent
-                       )
+                       Invoice.status == Status.sent)
                 .values(status = Status.overdue))
         result = await self.db.execute(stmt)
         await self.db.commit()
