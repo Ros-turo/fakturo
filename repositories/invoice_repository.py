@@ -78,3 +78,31 @@ class InvoiceRepo:
         result = await self.db.execute(stmt)
         await self.db.commit()
         return result.rowcount
+
+    async def invoice_stats(self, uid:int):
+        overdue_row = await self.update_overdue_invoices(uid=uid)
+        main_stmt = (
+            select(func.count(Invoice.id).label("total_invoices"),
+                   func.sum(Invoice.total_amount).label("total_revenue")
+                   )
+            .where(Invoice.owner_id == uid)
+        )
+
+        sub_stmt = (
+            select(Invoice.status,
+                   func.count(Invoice.status).label("count"),
+                   func.sum(Invoice.total_amount).label("total")
+                   )
+            .where(Invoice.owner_id == uid)
+            .group_by(Invoice.status)
+        )
+        main_result = await self.db.execute(main_stmt)
+        main_row = main_result.one()
+        sub_result = await self.db.execute(sub_stmt)
+
+        return {
+            "total_invoices": main_row.total_invoices,
+            "total_revenue": main_row.total_revenue,
+            "by_status":[row._asdict() for row in sub_result.all()],
+            "overdue_updated": overdue_row
+        }

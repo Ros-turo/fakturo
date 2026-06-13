@@ -72,6 +72,20 @@ class InvoiceResponse(InvoiceCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
+class InvoiceByStatus(BaseModel):
+    status: Status
+    count: int
+    total: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+class InvoiceStats(BaseModel):
+    total_invoices: int
+    total_revenue: Decimal
+    by_status: list[InvoiceByStatus]
+    overdue_updated: int | None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class UserCreate(BaseModel):
 

@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends
 from routers.auth import CurrentUser
-from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status
+from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats
 from db_models import Invoice, InvoiceItem
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession
@@ -29,6 +29,12 @@ async def get_invoices(user: CurrentUser, repo: InvoiceDepends):
     uid = user["uid"]
     responses = await repo.get_all_invoices(uid=uid)
     return responses
+
+@router.get("/stats", response_model=InvoiceStats)
+async def get_invoices_stats(user:CurrentUser, repo:InvoiceDepends):
+    uid = user["uid"]
+    return await repo.invoice_stats(uid=uid)
+
 
 @router.get("/total_sum")
 async def total_sum_of_invoices(user: CurrentUser, repo:InvoiceDepends):
