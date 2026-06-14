@@ -2,7 +2,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
 from routers.auth import CurrentUser
-from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir
+from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
+    InvoiceListResponse
 from db_models import Invoice, InvoiceItem
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession
@@ -24,19 +25,23 @@ async def create_invoice(user: CurrentUser, invoice: InvoiceCreate,
     uid = user["uid"]
     return await repo.create_invoice(uid=uid, invoice=invoice)
 
-@router.get("/", response_model=list[InvoiceResponse])
+@router.get("/", response_model=InvoiceListResponse)
 async def get_invoices(user: CurrentUser, repo: InvoiceDepends,
                        client_id: Annotated[int | None, Query()] = None,
                        order_by: Annotated[OrderBy | None, Query()] = None,
                        order_dir: Annotated[OrderDir | None, Query()] = None,
                        status: Annotated[Status | None, Query()] = None,
+                       limit: Annotated[int | None, Query(gt=0)] = None,
+                       offset: Annotated[int, Query()] = 0
                        ):
     uid = user["uid"]
     responses = await repo.get_all_invoices(uid=uid,
                                             client_id=client_id,
                                             order_by=order_by,
                                             order_dir=order_dir,
-                                            status=status)
+                                            status=status,
+                                            limit=limit,
+                                            offset=offset)
     return responses
 
 @router.get("/stats", response_model=InvoiceStats)

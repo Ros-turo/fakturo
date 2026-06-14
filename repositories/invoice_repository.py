@@ -33,22 +33,45 @@ class InvoiceRepo:
 
     async def get_all_invoices(self, uid:int, client_id: int = None,
                                order_by: OrderBy = None, order_dir: OrderDir = None,
-                               status: Status = None) -> list[Invoice]:
-        stmt =(select(Invoice)
+                               status: Status = None, limit: int = None, offset:int = 0) -> list[Invoice]:
+        items_stmt =(select(Invoice)
                .options(selectinload(Invoice.invoice_items))
-               .where(Invoice.owner_id == uid))
+               .where(Invoice.owner_id == uid)
+               .offset(offset)
+                     )
+
+        count_stmt =(select(func.count(Invoice.id))
+               .where(Invoice.owner_id == uid)
+               )
+        filters = []
+
         if not client_id is None:
-            stmt = stmt.where(Invoice.client_id == client_id)
+            filters.append(Invoice.client_id == client_id)
+
+        if not status is None:
+            filters.append(Invoice.status == status.value)
+
+        count_stmt = count_stmt.where(*filters)
+        count_result = await self.db.execute(count_stmt)
+
         if not order_by is None:
             order = getattr(Invoice, order_by.value)
             if not order_dir is None:
                 order = getattr(order, order_dir.value)()
-            stmt = stmt.order_by(order)
-        if not status is None:
-            stmt = stmt.where(Invoice.status == status.value)
+            items_stmt = items_stmt.order_by(order)
+        else:
+            items_stmt = items_stmt.order_by(Invoice.id.asc())
 
-        invoices_result = await self.db.execute(stmt)
-        return invoices_result.scalars().all()
+        if not limit is None:
+            items_stmt = items_stmt.limit(limit)
+
+        items_stmt = items_stmt.where(*filters)
+        invoices_items_result = await self.db.execute(items_stmt)
+
+        return {
+            "total": count_result.scalar_one_or_none(),
+            "items": invoices_items_result.scalars().all()
+        }
 
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
         invoice_result = await self.db.execute(select(Invoice)
