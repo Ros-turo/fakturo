@@ -5,6 +5,25 @@ from enum import Enum
 from decimal import Decimal
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
+class Status(str, Enum):
+    draft = "draft"
+    sent = "sent"
+    paid = "paid"
+    overdue = "overdue"
+
+class Action(str, Enum):
+    update = "UPDATE"
+    insert = "INSERT"
+    delete = "DELETE"
+
+class OrderBy(str, Enum):
+    created_at = "created_at"
+    issue_date = "issue_date"
+    due_date = "due_date"
+
+class OrderDir(str, Enum):
+    ascended = "asc"
+    descended = "desc"
 
 class ClientDefault(BaseModel):
     name: str
@@ -43,17 +62,6 @@ class InvoiceItemResponse(InvoiceItemCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
-class Status(str, Enum):
-    draft = "draft"
-    sent = "sent"
-    paid = "paid"
-    overdue = "overdue"
-
-class Action(str, Enum):
-    update = "UPDATE"
-    insert = "INSERT"
-    delete = "DELETE"
-
 class InvoiceCreate(BaseModel):
 
     invoice_number: str
@@ -72,6 +80,26 @@ class InvoiceResponse(InvoiceCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
+class InvoiceListResponse(BaseModel):
+    total: int
+    items: list[InvoiceResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+
+class InvoiceByStatus(BaseModel):
+    status: Status
+    count: int
+    total: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+class InvoiceStats(BaseModel):
+    total_invoices: int
+    total_revenue: Decimal
+    by_status: list[InvoiceByStatus]
+    overdue_updated: int | None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class UserCreate(BaseModel):
 

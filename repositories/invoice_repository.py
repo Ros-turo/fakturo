@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
-from schemas import InvoiceCreate, Status, Action
+from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -31,11 +31,47 @@ class InvoiceRepo:
                                        .where(Invoice.id == invoice_in_db.id))
         return result.scalar_one()
 
-    async def get_all_invoices(self, uid:int) -> list[Invoice]:
-        invoices_result = await self.db.execute(select(Invoice)
-                                                .options(selectinload(Invoice.invoice_items))
-                                                .where(Invoice.owner_id == uid))
-        return invoices_result.scalars().all()
+    async def get_all_invoices(self, uid:int, client_id: int = None,
+                               order_by: OrderBy = None, order_dir: OrderDir = None,
+                               status: Status = None, limit: int = None, offset:int = 0) -> list[Invoice]:
+        items_stmt =(select(Invoice)
+               .options(selectinload(Invoice.invoice_items))
+               .where(Invoice.owner_id == uid)
+               .offset(offset)
+                     )
+
+        count_stmt =(select(func.count(Invoice.id))
+               .where(Invoice.owner_id == uid)
+               )
+        filters = []
+
+        if not client_id is None:
+            filters.append(Invoice.client_id == client_id)
+
+        if not status is None:
+            filters.append(Invoice.status == status.value)
+
+        count_stmt = count_stmt.where(*filters)
+        count_result = await self.db.execute(count_stmt)
+
+        if not order_by is None:
+            order = getattr(Invoice, order_by.value)
+            if not order_dir is None:
+                order = getattr(order, order_dir.value)()
+            items_stmt = items_stmt.order_by(order)
+        else:
+            items_stmt = items_stmt.order_by(Invoice.id.asc())
+
+        if not limit is None:
+            items_stmt = items_stmt.limit(limit)
+
+        items_stmt = items_stmt.where(*filters)
+        invoices_items_result = await self.db.execute(items_stmt)
+
+        return {
+            "total": count_result.scalar_one_or_none(),
+            "items": invoices_items_result.scalars().all()
+        }
 
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
         invoice_result = await self.db.execute(select(Invoice)
@@ -78,3 +114,31 @@ class InvoiceRepo:
         result = await self.db.execute(stmt)
         await self.db.commit()
         return result.rowcount
+
+    async def invoice_stats(self, uid:int):
+        overdue_row = await self.update_overdue_invoices(uid=uid)
+        main_stmt = (
+            select(func.count(Invoice.id).label("total_invoices"),
+                   func.sum(Invoice.total_amount).label("total_revenue")
+                   )
+            .where(Invoice.owner_id == uid)
+        )
+
+        sub_stmt = (
+            select(Invoice.status,
+                   func.count(Invoice.status).label("count"),
+                   func.sum(Invoice.total_amount).label("total")
+                   )
+            .where(Invoice.owner_id == uid)
+            .group_by(Invoice.status)
+        )
+        main_result = await self.db.execute(main_stmt)
+        main_row = main_result.one()
+        sub_result = await self.db.execute(sub_stmt)
+
+        return {
+            "total_invoices": main_row.total_invoices,
+            "total_revenue": main_row.total_revenue,
+            "by_status":[row._asdict() for row in sub_result.all()],
+            "overdue_updated": overdue_row
+        }
