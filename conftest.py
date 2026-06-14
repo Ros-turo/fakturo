@@ -1,13 +1,13 @@
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine,AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine,AsyncSession
 
 from main import app
 from database import Base, get_db
 from config import test_db_url
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def engine():
     engine = create_async_engine(test_db_url)
     async with engine.begin() as conn:
@@ -36,3 +36,19 @@ async def client(db):
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+@pytest_asyncio.fixture
+async def registered_user(client):
+    await client.post("/auth/register", json={
+        "name": "Testovaci",
+        "surname": "Uzivatel",
+        "email": "test@fakturo.cz",
+        "password": "heslo1234",
+        "ico": "12345678",
+        "city": "Praha",
+        "psc": "11000",
+    })
+    return {
+        "username": "test@fakturo.cz",
+        "password": "heslo1234"
+    }

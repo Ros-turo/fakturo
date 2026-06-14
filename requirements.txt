@@ -37,3 +37,5 @@ uvicorn==0.46.0
 httpx
 jinja2
 weasyprint
+pytest
+pytest-asyncio

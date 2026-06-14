@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
-from schemas import InvoiceCreate, Status, Action
+from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -31,10 +31,23 @@ class InvoiceRepo:
                                        .where(Invoice.id == invoice_in_db.id))
         return result.scalar_one()
 
-    async def get_all_invoices(self, uid:int) -> list[Invoice]:
-        invoices_result = await self.db.execute(select(Invoice)
-                                                .options(selectinload(Invoice.invoice_items))
-                                                .where(Invoice.owner_id == uid))
+    async def get_all_invoices(self, uid:int, client_id: int = None,
+                               order_by: OrderBy = None, order_dir: OrderDir = None,
+                               status: Status = None) -> list[Invoice]:
+        stmt =(select(Invoice)
+               .options(selectinload(Invoice.invoice_items))
+               .where(Invoice.owner_id == uid))
+        if not client_id is None:
+            stmt = stmt.where(Invoice.client_id == client_id)
+        if not order_by is None:
+            order = getattr(Invoice, order_by.value)
+            if not order_dir is None:
+                order = getattr(order, order_dir.value)()
+            stmt = stmt.order_by(order)
+        if not status is None:
+            stmt = stmt.where(Invoice.status == status.value)
+
+        invoices_result = await self.db.execute(stmt)
         return invoices_result.scalars().all()
 
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:

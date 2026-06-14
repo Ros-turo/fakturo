@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date, Enum as SEnum, Table, \
-    UniqueConstraint, event
+from sqlalchemy import (Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date,
+                        Enum as SEnum, UniqueConstraint, event)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
