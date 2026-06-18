@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
@@ -5,10 +6,10 @@ from starlette.responses import StreamingResponse
 
 from routers.auth import CurrentUser
 from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
-    InvoiceListResponse
+    InvoiceListResponse, InvoiceByStatus
 from db_models import Invoice, InvoiceItem
 from repositories.invoice_repository import InvoiceRepo
-from database import DBSession
+from database import DBSession, SessionLocal
 from pdf import invoice_pdf
 
 
@@ -59,10 +60,10 @@ async def get_invoices_stats(user:CurrentUser, repo:InvoiceDepends):
     return await repo.invoice_stats(uid=uid)
 
 
-@router.get("/total_sum")
-async def total_sum_of_invoices(user: CurrentUser, repo:InvoiceDepends):
+@router.get("/sum_by_status", response_model=list[InvoiceByStatus])
+async def sum_by_status(user: CurrentUser, repo:InvoiceDepends)->list[InvoiceByStatus]:
     uid = user["uid"]
-    result = await repo.get_invoice_summary(uid=uid)
+    result = await repo.get_sum_by_status(uid=uid)
     return result
 
 @router.get("/update_overdue")
@@ -76,6 +77,20 @@ async def export_invoices(user: CurrentUser, repo: InvoiceDepends):
     uid = user["uid"]
     result = repo.a_get_all_invoices(uid=uid)
     return StreamingResponse(get_invoice_json(result), media_type="application/x-ndjson")
+
+@router.get("/invoices_dashboard")
+async def invoice_dashboard(user: CurrentUser):
+    uid = user["uid"]
+    async with SessionLocal() as session_1, SessionLocal() as session_2:
+        repo_1 = get_invoice_repo(session_1)
+        repo_2 = get_invoice_repo(session_2)
+        async with asyncio.TaskGroup() as tg:
+            sum_by_status_result = tg.create_task(repo_1.get_sum_by_status(uid=uid))
+            stats_result = tg.create_task(repo_2.invoice_stats(uid=uid))
+    return {
+        "sum_by_status": sum_by_status_result.result(),
+        "stats": stats_result.result()
+    }
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],

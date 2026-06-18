@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
-from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir, InvoiceResponse
+from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -31,9 +31,9 @@ class InvoiceRepo:
                                        .where(Invoice.id == invoice_in_db.id))
         return result.scalar_one()
 
-    async def get_all_invoices(self, uid:int, client_id: int = None,
-                               order_by: OrderBy = None, order_dir: OrderDir = None,
-                               status: Status = None, limit: int = None, offset:int = 0) -> list[Invoice]:
+    async def get_all_invoices(self, uid:int, client_id: int | None = None,
+                               order_by: OrderBy | None = None, order_dir: OrderDir | None = None,
+                               status: Status | None = None, limit: int | None = None, offset:int = 0) -> dict:
         items_stmt =(select(Invoice)
                .options(selectinload(Invoice.invoice_items))
                .where(Invoice.owner_id == uid)
@@ -104,7 +104,7 @@ class InvoiceRepo:
         self.db.add(invoice)
         await self.db.commit()
 
-    async def get_invoice_summary(self, uid:int):
+    async def get_sum_by_status(self, uid:int):
         result = await self.db.execute(select(Invoice.status,
                                               func.count(Invoice.id).label("count"),
                                               func.sum(Invoice.total_amount).label("total"))
