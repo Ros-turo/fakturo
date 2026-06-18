@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
-from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir
+from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir, InvoiceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -72,6 +72,13 @@ class InvoiceRepo:
             "total": count_result.scalar_one_or_none(),
             "items": invoices_items_result.scalars().all()
         }
+
+    async def a_get_all_invoices(self, uid: int):
+        result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid)
+                                      .options(selectinload(Invoice.invoice_items)))
+        invoices = result.scalars()
+        async for invoice in invoices:
+            yield invoice
 
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
         invoice_result = await self.db.execute(select(Invoice)

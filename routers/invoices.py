@@ -1,6 +1,8 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
+from starlette.responses import StreamingResponse
+
 from routers.auth import CurrentUser
 from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
     InvoiceListResponse
@@ -17,6 +19,13 @@ def get_invoice_repo(db: DBSession):
     return InvoiceRepo(db)
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
+
+async def get_invoice_json(invoices):
+    async for invoice in invoices:
+        invoice_json = (InvoiceResponse
+                        .model_validate(invoice)
+                        .model_dump_json())
+        yield invoice_json + " \n"
 
 @router.post("/", response_model=InvoiceResponse)
 async def create_invoice(user: CurrentUser, invoice: InvoiceCreate,
@@ -61,6 +70,12 @@ async def update_overdue(user: CurrentUser, repo: InvoiceDepends):
     uid = user["uid"]
     result = await repo.update_overdue_invoices(uid=uid)
     return result
+
+@router.get("/export_invoices")
+async def export_invoices(user: CurrentUser, repo: InvoiceDepends):
+    uid = user["uid"]
+    result = repo.a_get_all_invoices(uid=uid)
+    return StreamingResponse(get_invoice_json(result), media_type="application/x-ndjson")
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],
