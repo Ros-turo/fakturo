@@ -104,6 +104,7 @@ async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],
 @router.get("/{invoice_id}/pdf")
 async def invoice_to_pdf(user: CurrentUser, invoice_id: int,
                    repo: InvoiceDepends):
+    """ Convert invoice to pdf"""
     uid = user["uid"]
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
