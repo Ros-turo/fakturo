@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
 from starlette.responses import StreamingResponse
 
-from routers.auth import CurrentUser
+from routers.auth import CurrentUser, CurrentActiveUser
 from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
     InvoiceListResponse, InvoiceByStatus
 from db_models import Invoice, InvoiceItem
@@ -117,7 +117,7 @@ async def invoice_to_pdf(user: CurrentUser, invoice_id: int,
     )
 
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
-async def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentUser,
+async def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentActiveUser,
                   new_status: Status, repo: InvoiceDepends):
     uid = user["uid"]
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
