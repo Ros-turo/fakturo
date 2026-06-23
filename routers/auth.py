@@ -56,12 +56,22 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
 def get_user_repo(db:DBSession)->UserRepository:
+
     user_repo = UserRepository(db)
     return user_repo
 
 UserDepends = Annotated[UserRepository, Depends(get_user_repo)]
 
 async def get_current_user_active(user: CurrentUser, repo: UserDepends):
+    """
+    Control if current login user is active and not blocked according to the database
+    :param user: dict of user data(jwt payload)
+    :param repo: user repository
+    :raises HTTPException with status code
+            401 - Invalid credentials
+            423 - Account is blocked
+    :return: user: dict of user data(jwt payload)
+    """
     uid = user["uid"]
     user_data = await repo.get_by_uid(uid=uid)
     if user_data is None:
