@@ -1,23 +1,14 @@
-import logging
+from logging_config import logger
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from sqlalchemy import text
 
 from database import engine
+from middleware import TimingLoggingMiddleware, SecondMiddleware
 from routers import clients, auth, invoices
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
-formatter = logging.Formatter(fmt="%(asctime)s | %(levelname)s | %(message)s",
-                              datefmt="%Y-%m-%d %H:%M:%S")
-
-handler = logging.FileHandler("app.log")
-handler.setLevel(logging.NOTSET)
-handler.setFormatter(fmt=formatter)
-
-logger.addHandler(handler)
 
 @asynccontextmanager
 async def lifespan(app):
@@ -33,6 +24,10 @@ async def lifespan(app):
     logger.info("App shutdown")
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(SecondMiddleware) #2 Inner wrapper
+app.add_middleware(TimingLoggingMiddleware) #1 Global wrapper
+
 app.include_router(clients.router)
 app.include_router(auth.router)
 app.include_router(invoices.router)
