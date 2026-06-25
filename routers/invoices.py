@@ -1,26 +1,40 @@
 import asyncio
+import os
+import time
+from asyncio import gather
 from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
+from starlette.background import BackgroundTasks
 from starlette.responses import StreamingResponse
 
 from routers.auth import CurrentUser, CurrentActiveUser
 from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
-    InvoiceListResponse, InvoiceByStatus
-from db_models import Invoice, InvoiceItem
+    InvoiceListResponse, InvoiceByStatus, BulkPDFResponse
+from logging_config import logger
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
 from pdf import invoice_pdf
 
 
-
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
+# Database helper function
 def get_invoice_repo(db: DBSession):
     return InvoiceRepo(db)
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
 
+# Background tasks
+
+def notify_invoice_created(invoice_number):
+    try:
+        time.sleep(2)
+        logger.info(f"Invoice {invoice_number} was created")
+    except Exception as e:
+        logger.exception(e)
+
+# Functions-helpers
 async def get_invoice_json(invoices):
     async for invoice in invoices:
         invoice_json = (InvoiceResponse
@@ -29,11 +43,13 @@ async def get_invoice_json(invoices):
         yield invoice_json + " \n"
 
 @router.post("/", response_model=InvoiceResponse)
-async def create_invoice(user: CurrentUser, invoice: InvoiceCreate,
-                   repo:InvoiceDepends):
+async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
+                   repo:InvoiceDepends, background_task: BackgroundTasks):
 
     uid = user["uid"]
-    return await repo.create_invoice(uid=uid, invoice=invoice)
+    new_invoice = await repo.create_invoice(uid=uid, invoice=invoice_data)
+    background_task.add_task(notify_invoice_created, new_invoice.invoice_number)
+    return new_invoice
 
 @router.get("/", response_model=InvoiceListResponse)
 async def get_invoices(user: CurrentUser, repo: InvoiceDepends,
@@ -91,6 +107,35 @@ async def invoice_dashboard(user: CurrentUser):
         "sum_by_status": sum_by_status_result.result(),
         "stats": stats_result.result()
     }
+
+@router.get("/bulk_pdf_create", response_model= BulkPDFResponse)
+async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=1, max_length=50)],
+                              user: CurrentUser, repo: InvoiceDepends):
+    uid = user["uid"]
+    tripped_id = set()
+    coros = []
+    invoice_generator = repo.get_invoices_by_id(uid, invoices_id)
+    async for invoice in invoice_generator:
+            tripped_id.add(invoice.id)
+            coro = asyncio.to_thread(invoice_pdf, invoice)
+            coros.append(coro)
+
+    pdf_list = await asyncio.gather(*coros, return_exceptions=True)
+
+    invoices_id -= tripped_id
+
+    if invoices_id:
+        logger.warning(f"User {uid} attempted to access invoices not owned: {invoices_id}")
+
+    size = sum([len(pdf) for pdf in pdf_list])
+    created_count = len(tripped_id)
+    return {
+        "status": "ok",
+        "Denied_id": invoices_id,
+        "Created_pdf_count":created_count,
+        "Size": size,
+    }
+
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],

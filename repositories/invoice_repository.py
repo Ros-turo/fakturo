@@ -75,7 +75,10 @@ class InvoiceRepo:
 
     async def a_get_all_invoices(self, uid: int):
         result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid)
-                                      .options(selectinload(Invoice.invoice_items)))
+                                      .options(selectinload(Invoice.invoice_items),
+                                               selectinload(Invoice.owner),
+                                               selectinload(Invoice.client),
+                                               selectinload(Invoice.tags)))
         invoices = result.scalars()
         async for invoice in invoices:
             yield invoice
@@ -90,6 +93,20 @@ class InvoiceRepo:
                                                       Invoice.owner_id == uid))
         invoice = invoice_result.scalar_one_or_none()
         return invoice
+
+    async def get_invoices_by_id(self,uid: int ,invoices_id: set[int]):
+        stmt =(select(Invoice)
+            .where(Invoice.owner_id == uid,
+                Invoice.id.in_(invoices_id))
+            .options(
+                    selectinload(Invoice.invoice_items),
+                    selectinload(Invoice.owner),
+                    selectinload(Invoice.client),
+                    selectinload(Invoice.tags)))
+        invoices = await self.db.stream(stmt)
+        result = invoices.scalars()
+        async for invoice in result:
+            yield invoice
 
     async def change_invoice_status(self, invoice: Invoice, new_status: Status) -> None:
         new_log= AuditLog(
