@@ -7,6 +7,7 @@ from schemas import ClientCreate, ClientResponse, ClientAres
 from routers.auth import CurrentUser
 from database import DBSession
 from db_models import  Client
+from exceptions import ClientNotFoundError
 import httpx
 
 
@@ -55,7 +56,7 @@ async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
     uid = user['uid']
     client: Client | None = await repo.get_one_client(uid=uid, client_id=client_id)
     if not client:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise ClientNotFoundError(client_id=client_id)
     return client
 
 @router.post('/', response_model=ClientResponse)

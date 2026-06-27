@@ -10,7 +10,7 @@ from sqlalchemy import text
 from database import engine
 from middleware import TimingLoggingMiddleware, SecondMiddleware
 from routers import clients, auth, invoices
-from exceptions import InvoiceNotFoundError
+from exceptions import FakturoNotFoundError
 
 
 
@@ -38,12 +38,12 @@ app.include_router(invoices.router)
 
 
 # Exceptions
-@app.exception_handler(InvoiceNotFoundError)
-def invoice_not_found_exception(request: Request, exc: InvoiceNotFoundError) -> JSONResponse :
+@app.exception_handler(FakturoNotFoundError)
+def invoice_not_found_exception(request: Request, exc: FakturoNotFoundError) -> JSONResponse :
 
     return JSONResponse(
         status_code=404,
-        content={"detail": f"Invoice {exc.invoice_id} is not found"}
+        content={"detail": f"{exc.resource_name} {exc.resource_id} is not found"}
     )
 
 

@@ -1,16 +1,16 @@
-"""
- Existuje vlastní exception třída, která nese invoice_id jako atribut (ne jen generický string)
- Existuje registrovaný exception_handler, který tuhle výjimku zpracuje a vrátí 404 s JSON 
- obsahem obsahujícím invoice_id
- Endpoint GET /invoices/{invoice_id} vyhazuje novou výjimku místo přímého HTTPException
- Chování pro klienta zůstává funkčně stejné (404 status, smysluplná zpráva) — jen mechanismus je jiný
+class FakturoNotFoundError(Exception):
 
-Out of scope (pro tenhle issue)
+    def __init__(self, resource_name, resource_id):
+        self.resource_name: str = resource_name
+        self.resource_id: int = resource_id
 
-Úprava ostatních endpointů (change_status, invoice_to_pdf) — bude samostatný follow-up issue
-Logování při zachycení výjimky — zatím jen vrácení response"""
 
-class InvoiceNotFoundError(Exception):
+class InvoiceNotFoundError(FakturoNotFoundError):
 
     def __init__(self, invoice_id: int):
-        self.invoice_id = invoice_id
+        super().__init__(resource_name="Invoice", resource_id=invoice_id)
+
+class ClientNotFoundError(FakturoNotFoundError):
+
+    def __init__(self, client_id):
+        super().__init__(resource_name="Client", resource_id=client_id)
