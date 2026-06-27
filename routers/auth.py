@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 
@@ -12,6 +12,7 @@ from database import DBSession
 from db_models import User
 from config import p_key, p_alg
 from repositories.user_repository import UserRepository
+from logging_config import logger
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -30,6 +31,53 @@ def verify_password(password: str, hashed_pwd) -> bool:
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
+logging_attempt = {}
+blocked_ip = {}
+
+def ip_blocker(ip: str) -> None:
+
+    blocked_to = datetime.now() + timedelta(minutes=10)
+    blocked_ip[ip] = blocked_to
+
+    logger.warning(f"{ip} has to many attempts and blocked to 10 minutes")
+
+    raise HTTPException(status_code=429, detail="Too many attempts")
+
+def checker_block(request: Request) -> None:
+
+    ip = request.client.host
+
+    blocked_to = blocked_ip.get(ip, None)
+
+    if blocked_to is None or blocked_to < datetime.now():
+        return None
+
+    raise HTTPException(status_code=429, detail=" Too many attempts, try later")
+
+def remove_attempt(ip: str) -> None:
+    logging_attempt[ip] = []
+
+def logger_attempt(request: Request) -> None:
+
+    ip = request.client.host
+    
+    now = datetime.now()
+    future = now + timedelta(minutes=10)
+
+    if logging_attempt.get(ip) is None:
+        logging_attempt[ip] = []
+
+    logging_attempt[ip].append(future)
+
+    for attempt in logging_attempt[ip][:]:
+        if now > attempt:
+            logging_attempt[ip].remove(attempt)
+
+    if len(logging_attempt[ip]) >= 5:
+        ip_blocker(ip)
+
+    return ip
+
 
 def create_access_token(data: dict) -> str:
     """
@@ -42,7 +90,8 @@ def create_access_token(data: dict) -> str:
     token = jwt.encode(payload, p_key, p_alg)
     return token
 
-def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],
+                     ) -> dict:
     """
     :param token
     :return:
@@ -88,6 +137,7 @@ async def get_current_user_active(user: CurrentUser, repo: UserDepends):
 
 CurrentActiveUser = Annotated[dict, Depends(get_current_user_active)]
 
+
 @router.post('/register')
 async def register(user_data: UserCreate, repo: UserDepends):
 
@@ -102,14 +152,14 @@ async def register(user_data: UserCreate, repo: UserDepends):
 
     return {'msg': 'User registered', 'status': 'ok', 'UID': user.id}
 
-@router.post('/login')
+@router.post('/login', dependencies=[Depends(checker_block)])
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-                repo: UserDepends):
+                repo: UserDepends, ip: Annotated[str, Depends(logger_attempt)]):
 
     current_user = await repo.get_by_email(form_data.username)
     if not current_user or not verify_password(form_data.password, current_user.hashed_password):
         raise invalid_credentials_exception()
 
-
+    remove_attempt(ip)
     token:str = create_access_token({"sub":current_user.email, "uid":current_user.id})
     return  {'access_token': token, 'token_type': 'bearer'}
