@@ -1,3 +1,6 @@
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
 from logging_config import logger
 from contextlib import asynccontextmanager
 
@@ -7,6 +10,7 @@ from sqlalchemy import text
 from database import engine
 from middleware import TimingLoggingMiddleware, SecondMiddleware
 from routers import clients, auth, invoices
+from exceptions import InvoiceNotFoundError
 
 
 
@@ -31,6 +35,17 @@ app.add_middleware(TimingLoggingMiddleware) #1 Global wrapper
 app.include_router(clients.router)
 app.include_router(auth.router)
 app.include_router(invoices.router)
+
+
+# Exceptions
+@app.exception_handler(InvoiceNotFoundError)
+def invoice_not_found_exception(request: Request, exc: InvoiceNotFoundError) -> JSONResponse :
+
+    return JSONResponse(
+        status_code=404,
+        content={"detail": f"Invoice {exc.invoice_id} is not found"}
+    )
+
 
 @app.get('/')
 def info():
