@@ -114,3 +114,10 @@ class UserCreate(BaseModel):
     psc: str
     street: str | None = None
     house_number: str | None = None
+
+class BulkPDFResponse(BaseModel):
+
+    status: str
+    denied_ids: set[int]
+    created_count: int
+    size: int

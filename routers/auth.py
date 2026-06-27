@@ -15,6 +15,11 @@ from repositories.user_repository import UserRepository
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
+def invalid_credentials_exception() -> HTTPException:
+    return HTTPException(status_code=401, detail="Invalid credentials")
+
+def blocked_user_exception():
+    return HTTPException(status_code=423, detail="Account is blocked")
 
 pwd_hasher = PasswordHash.recommended()
 def hash_password(password: str) -> str:
@@ -27,12 +32,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
 
 def create_access_token(data: dict) -> str:
+    """
+    ::param user data: email, password
+    ::return user's token
+    """
     payload = data.copy()
     expire_time = datetime.now(timezone.utc) + timedelta(minutes=30)
     payload.update({"exp": expire_time})
-    return jwt.encode(payload, p_key, p_alg)
+    token = jwt.encode(payload, p_key, p_alg)
+    return token
 
-def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+    """
+    :param token
+    :return:
+    """
     try:
         payload = jwt.decode(token,p_key,p_alg)
     except JWTError:
@@ -41,11 +55,38 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
+def get_user_id(user: CurrentUser) -> int:
+
+    return user["uid"]
+
+UserID = Annotated[int, Depends(get_user_id)]
+
 def get_user_repo(db:DBSession)->UserRepository:
+
     user_repo = UserRepository(db)
     return user_repo
 
 UserDepends = Annotated[UserRepository, Depends(get_user_repo)]
+
+async def get_current_user_active(user: CurrentUser, repo: UserDepends):
+    """
+    Control if current login user is active and not blocked according to the database
+    :param user: dict of user data(jwt payload)
+    :param repo: user repository
+    :raises HTTPException with status code
+            401 - Invalid credentials
+            423 - Account is blocked
+    :return: user: dict of user data(jwt payload)
+    """
+    uid = user["uid"]
+    user_data = await repo.get_by_uid(uid=uid)
+    if user_data is None:
+        raise invalid_credentials_exception()
+    if not user_data.is_active:
+        raise blocked_user_exception()
+    return user
+
+CurrentActiveUser = Annotated[dict, Depends(get_current_user_active)]
 
 @router.post('/register')
 async def register(user_data: UserCreate, repo: UserDepends):
@@ -67,7 +108,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 
     current_user = await repo.get_by_email(form_data.username)
     if not current_user or not verify_password(form_data.password, current_user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise invalid_credentials_exception()
 
 
     token:str = create_access_token({"sub":current_user.email, "uid":current_user.id})

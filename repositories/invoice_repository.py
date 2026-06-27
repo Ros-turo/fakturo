@@ -31,9 +31,9 @@ class InvoiceRepo:
                                        .where(Invoice.id == invoice_in_db.id))
         return result.scalar_one()
 
-    async def get_all_invoices(self, uid:int, client_id: int = None,
-                               order_by: OrderBy = None, order_dir: OrderDir = None,
-                               status: Status = None, limit: int = None, offset:int = 0) -> list[Invoice]:
+    async def get_all_invoices(self, uid:int, client_id: int | None = None,
+                               order_by: OrderBy | None = None, order_dir: OrderDir | None = None,
+                               status: Status | None = None, limit: int | None = None, offset:int = 0) -> dict:
         items_stmt =(select(Invoice)
                .options(selectinload(Invoice.invoice_items))
                .where(Invoice.owner_id == uid)
@@ -73,6 +73,16 @@ class InvoiceRepo:
             "items": invoices_items_result.scalars().all()
         }
 
+    async def a_get_all_invoices(self, uid: int):
+        result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid)
+                                      .options(selectinload(Invoice.invoice_items),
+                                               selectinload(Invoice.owner),
+                                               selectinload(Invoice.client),
+                                               selectinload(Invoice.tags)))
+        invoices = result.scalars()
+        async for invoice in invoices:
+            yield invoice
+
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
         invoice_result = await self.db.execute(select(Invoice)
                                                .options(selectinload(Invoice.invoice_items),
@@ -83,6 +93,20 @@ class InvoiceRepo:
                                                       Invoice.owner_id == uid))
         invoice = invoice_result.scalar_one_or_none()
         return invoice
+
+    async def get_invoices_by_id(self,uid: int ,invoices_id: set[int]):
+        stmt =(select(Invoice)
+            .where(Invoice.owner_id == uid,
+                Invoice.id.in_(invoices_id))
+            .options(
+                    selectinload(Invoice.invoice_items),
+                    selectinload(Invoice.owner),
+                    selectinload(Invoice.client),
+                    selectinload(Invoice.tags)))
+        invoices = await self.db.stream(stmt)
+        result = invoices.scalars()
+        async for invoice in result:
+            yield invoice
 
     async def change_invoice_status(self, invoice: Invoice, new_status: Status) -> None:
         new_log= AuditLog(
@@ -97,7 +121,7 @@ class InvoiceRepo:
         self.db.add(invoice)
         await self.db.commit()
 
-    async def get_invoice_summary(self, uid:int):
+    async def get_sum_by_status(self, uid:int):
         result = await self.db.execute(select(Invoice.status,
                                               func.count(Invoice.id).label("count"),
                                               func.sum(Invoice.total_amount).label("total"))
