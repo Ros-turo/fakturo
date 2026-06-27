@@ -1,7 +1,5 @@
 import asyncio
-import os
 import time
-from asyncio import gather
 from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
@@ -15,6 +13,7 @@ from logging_config import logger
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
 from pdf import invoice_pdf
+from exceptions import InvoiceNotFoundError
 
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -143,7 +142,7 @@ async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],
     uid = user["uid"]
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise InvoiceNotFoundError(invoice_id=invoice_id)
     return invoice
 
 @router.get("/{invoice_id}/pdf")
@@ -153,7 +152,7 @@ async def invoice_to_pdf(user: CurrentUser, invoice_id: int,
     uid = user["uid"]
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise InvoiceNotFoundError(invoice_id=invoice_id)
     pdf = invoice_pdf(invoice)
     return Response(
         content=pdf,
@@ -167,7 +166,7 @@ async def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentAct
     uid = user["uid"]
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise InvoiceNotFoundError(invoice_id=invoice_id)
     await repo.change_invoice_status(invoice=invoice, new_status=new_status)
     return await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
 
