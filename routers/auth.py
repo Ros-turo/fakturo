@@ -55,6 +55,12 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
+def get_user_id(user: CurrentUser) -> int:
+
+    return user["uid"]
+
+UserID = Annotated[int, Depends(get_user_id)]
+
 def get_user_repo(db:DBSession)->UserRepository:
 
     user_repo = UserRepository(db)

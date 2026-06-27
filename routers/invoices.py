@@ -6,9 +6,10 @@ from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
 from starlette.background import BackgroundTasks
 from starlette.responses import StreamingResponse
 
-from routers.auth import CurrentUser, CurrentActiveUser
-from schemas import InvoiceCreate, InvoiceItemCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
+from routers.auth import CurrentUser, CurrentActiveUser, UserID
+from schemas import InvoiceCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
     InvoiceListResponse, InvoiceByStatus, BulkPDFResponse
+from db_models import Invoice
 from logging_config import logger
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
@@ -24,6 +25,15 @@ def get_invoice_repo(db: DBSession):
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
 
+async def invoice_exists_checker(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
+    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
+    if not invoice:
+        raise InvoiceNotFoundError(invoice_id=invoice_id)
+    return invoice
+
+ExistingInvoice = Annotated[Invoice, Depends(invoice_exists_checker)]
+
+
 # Background tasks
 
 def notify_invoice_created(invoice_number):
@@ -34,6 +44,7 @@ def notify_invoice_created(invoice_number):
         logger.exception(e)
 
 # Functions-helpers
+
 async def get_invoice_json(invoices):
     async for invoice in invoices:
         invoice_json = (InvoiceResponse
@@ -70,32 +81,27 @@ async def get_invoices(user: CurrentUser, repo: InvoiceDepends,
     return responses
 
 @router.get("/stats", response_model=InvoiceStats)
-async def get_invoices_stats(user:CurrentUser, repo:InvoiceDepends):
-    uid = user["uid"]
+async def get_invoices_stats(uid: UserID, repo:InvoiceDepends):
     return await repo.invoice_stats(uid=uid)
 
 
 @router.get("/sum_by_status", response_model=list[InvoiceByStatus])
-async def sum_by_status(user: CurrentUser, repo:InvoiceDepends)->list[InvoiceByStatus]:
-    uid = user["uid"]
+async def sum_by_status(uid: UserID, repo:InvoiceDepends)->list[InvoiceByStatus]:
     result = await repo.get_sum_by_status(uid=uid)
     return result
 
 @router.get("/update_overdue")
-async def update_overdue(user: CurrentUser, repo: InvoiceDepends):
-    uid = user["uid"]
+async def update_overdue(uid: UserID, repo: InvoiceDepends):
     result = await repo.update_overdue_invoices(uid=uid)
     return result
 
 @router.get("/export_invoices")
-async def export_invoices(user: CurrentUser, repo: InvoiceDepends):
-    uid = user["uid"]
+async def export_invoices(uid: UserID, repo: InvoiceDepends):
     result = repo.a_get_all_invoices(uid=uid)
     return StreamingResponse(get_invoice_json(result), media_type="application/x-ndjson")
 
 @router.get("/invoices_dashboard")
-async def invoice_dashboard(user: CurrentUser):
-    uid = user["uid"]
+async def invoice_dashboard(uid: UserID):
     async with SessionLocal() as session_1, SessionLocal() as session_2:
         repo_1 = get_invoice_repo(session_1)
         repo_2 = get_invoice_repo(session_2)
@@ -109,8 +115,7 @@ async def invoice_dashboard(user: CurrentUser):
 
 @router.get("/bulk_pdf_create", response_model= BulkPDFResponse)
 async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=1, max_length=50)],
-                              user: CurrentUser, repo: InvoiceDepends):
-    uid = user["uid"]
+                              uid: UserID, repo: InvoiceDepends):
     tripped_id = set()
     coros = []
     invoice_generator = repo.get_invoices_by_id(uid, invoices_id)
@@ -137,22 +142,13 @@ async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-async def get_one_invoice(invoice_id: Annotated[int, Path(ge=0)],
-                          user: CurrentUser, repo: InvoiceDepends):
-    uid = user["uid"]
-    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
-    if not invoice:
-        raise InvoiceNotFoundError(invoice_id=invoice_id)
+async def get_one_invoice(invoice: ExistingInvoice):
     return invoice
 
 @router.get("/{invoice_id}/pdf")
-async def invoice_to_pdf(user: CurrentUser, invoice_id: int,
-                   repo: InvoiceDepends):
+async def invoice_to_pdf(invoice: ExistingInvoice):
     """ Convert invoice to pdf"""
-    uid = user["uid"]
-    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
-    if not invoice:
-        raise InvoiceNotFoundError(invoice_id=invoice_id)
+
     pdf = invoice_pdf(invoice)
     return Response(
         content=pdf,
@@ -161,13 +157,9 @@ async def invoice_to_pdf(user: CurrentUser, invoice_id: int,
     )
 
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
-async def change_status(invoice_id: Annotated[int, Path(ge=0)], user: CurrentActiveUser,
+async def change_status(invoice: ExistingInvoice, user: CurrentActiveUser,
                   new_status: Status, repo: InvoiceDepends):
-    uid = user["uid"]
-    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
-    if not invoice:
-        raise InvoiceNotFoundError(invoice_id=invoice_id)
     await repo.change_invoice_status(invoice=invoice, new_status=new_status)
-    return await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
+    return invoice
 
 
