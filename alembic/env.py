@@ -62,7 +62,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    url = os.getenv("DATABASE_URL")
+    url = os.getenv("DB_URL")
 
     sync_url = url.replace("postgresql+asyncpg", "postgresql+psycopg2")
 

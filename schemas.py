@@ -3,7 +3,8 @@ from datetime import date, datetime
 from enum import Enum
 
 from decimal import Decimal
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, model_validator, field_validator, computed_field
+
 
 class Status(str, Enum):
     draft = "draft"
@@ -24,6 +25,11 @@ class OrderBy(str, Enum):
 class OrderDir(str, Enum):
     ascended = "asc"
     descended = "desc"
+
+class VatRate(int, Enum):
+    basic = 21
+    reduce = 12
+
 
 class ClientDefault(BaseModel):
     name: str
@@ -54,7 +60,19 @@ class InvoiceItemCreate(BaseModel):
     description: str
     unit_price: Decimal
     quantity: Decimal
-    vat_rate: int
+    vat_rate: VatRate
+
+
+    @computed_field
+    @property
+    def subtotal(self) -> Decimal:
+        return round(self.unit_price*self.quantity, 2)
+
+    @computed_field
+    @property
+    def total_with_vat(self) -> Decimal:
+        return round((self.subtotal*(1+Decimal(self.vat_rate/100))), 2)
+
 
 class InvoiceItemResponse(InvoiceItemCreate):
     id: int
@@ -69,6 +87,20 @@ class InvoiceCreate(BaseModel):
     due_date: Annotated[date, Field()]
     invoice_items: list[InvoiceItemCreate]
     client_id: Annotated[int, Field(ge=1)]
+
+    @field_validator("due_date")
+    @classmethod
+    def due_date_not_in_past(cls, value: date) -> date:
+        if value < date.today():
+            raise ValueError("Due date cannot be in the past" )
+        return value
+
+    @model_validator(mode="after")
+    def due_date_after_issue_date(self):
+        if self.due_date < self.issue_date:
+            raise ValueError("Due date cannot be early than issue date")
+        return self
+
 
 class InvoiceResponse(InvoiceCreate):
     id: int

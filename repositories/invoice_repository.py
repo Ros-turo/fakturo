@@ -15,7 +15,7 @@ class InvoiceRepo:
         self.db = db
 
     async def create_invoice(self, uid:int, invoice: InvoiceCreate) -> Invoice:
-        total_amount = sum((item.unit_price*item.quantity) * Decimal(1 + (item.vat_rate / 100)) for item in invoice.invoice_items)
+        total_amount = sum(item.total_with_vat for item in invoice.invoice_items)
         invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id = uid,
                                 total_amount=total_amount)
         self.db.add(invoice_in_db)
@@ -23,7 +23,7 @@ class InvoiceRepo:
 
         await self.db.execute(insert(InvoiceItem)
                               .values([{"invoice_id": invoice_in_db.id,
-                                                     **item.model_dump()}
+                                                     **item.model_dump(exclude={"subtotal", "total_with_vat"})}
                                                     for item in invoice.invoice_items]))
         await self.db.commit()
         result = await self.db.execute(select(Invoice)
