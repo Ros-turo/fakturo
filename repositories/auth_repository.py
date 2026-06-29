@@ -1,7 +1,41 @@
+from datetime import datetime
+
 from database import DBSession
+from db_models import RefreshToken
+
+from sqlalchemy import select
 
 class AuthRepo:
 
     def __init__(self,db:DBSession):
         self.db = db
 
+    async def get_refresh_token(self, jti: str) -> RefreshToken | None:
+
+        token_data = await self.db.execute(select(RefreshToken)
+                                           .where(RefreshToken.jti == jti))
+
+        return token_data.scalar_one_or_none()
+
+    async def post_refresh_token(self, uid: int, jti: str,
+                                 expired_at: datetime, email: str):
+
+        token_data = RefreshToken(
+            jti = jti,
+            expired_at = expired_at,
+            user_id = uid,
+            user_email = email
+        )
+        self.db.add(token_data)
+        await self.db.commit()
+
+        return None
+
+    async def revoke_token(self, token_data:RefreshToken) -> None:
+
+        token_data.revoked = True
+        await self.db.commit()
+
+    async def delete_token(self, token):
+        self.db.delete(token)
+        await self.db.commit()

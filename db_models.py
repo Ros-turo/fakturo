@@ -24,6 +24,7 @@ class User(Base):
 
     clients = relationship("Client", back_populates="owner")
     invoices = relationship("Invoice", back_populates="owner")
+    tokens = relationship("RefreshToken", back_populates="owner", foreign_keys="[RefreshToken.user_id]")
 
 
 class Client(Base):
@@ -115,4 +116,15 @@ class AuditLog(Base):
     new_value = Column(String, nullable=True)
     changed_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True)
+    jti = Column(String, nullable=False)
+    expired_at = Column(DateTime(timezone=True), nullable=False)
+    revoked = Column(Boolean, default=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_email = Column(String, ForeignKey("users.email"), nullable=False)
+
+    owner = relationship("User", back_populates="tokens", foreign_keys=[user_id])
 
