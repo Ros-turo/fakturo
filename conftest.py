@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import create_async_engine,AsyncSession
 
 from main import app
 from database import Base, get_db
-from config import test_db_url
+from settings import settings
 
 @pytest_asyncio.fixture(scope="function")
 async def engine():
-    engine = create_async_engine(test_db_url)
+    engine = create_async_engine(settings.test_db_url)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine

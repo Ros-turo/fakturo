@@ -39,3 +39,4 @@ jinja2
 weasyprint
 pytest
 pytest-asyncio
+pydantic-settings

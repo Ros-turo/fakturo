@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 from schemas import UserCreate
 from database import DBSession, SessionLocal
 from db_models import User, RefreshToken
-from config import p_key, p_alg
+from settings import settings
 from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
 from logging_config import logger
@@ -110,7 +110,7 @@ def create_access_token(email:str, uid:int) -> str:
         'type': 'access'
     }
 
-    return jwt.encode(payload, p_key, p_alg)
+    return jwt.encode(payload, settings.secret_key, settings.algorithm)
 
 async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
     now = datetime.now(timezone.utc)
@@ -124,7 +124,7 @@ async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
         'type': 'refresh'
     }
 
-    token = jwt.encode(payload, p_key, p_alg)
+    token = jwt.encode(payload, settings.secret_key, settings.algorithm)
 
     await auth_repo.post_refresh_token(uid=uid, email=email,
                                       jti=jti, expired_at=expire_time)
@@ -154,7 +154,7 @@ def get_refresh_token_payload(request:Request) -> dict:
 def decode_jwt_token(token:str) -> dict:
 
     try:
-        payload = jwt.decode(token, p_key, p_alg)
+        payload = jwt.decode(token, settings.secret_key, settings.algorithm)
     except JWTError:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
