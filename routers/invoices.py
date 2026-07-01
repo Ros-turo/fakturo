@@ -52,7 +52,7 @@ async def get_invoice_json(invoices):
                         .model_dump_json())
         yield invoice_json + " \n"
 
-@router.post("/", response_model=InvoiceResponse)
+@router.post("/create_invoice", response_model=InvoiceResponse)
 async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
                    repo:InvoiceDepends, background_task: BackgroundTasks):
 
@@ -140,6 +140,14 @@ async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=
         "Size": size,
     }
 
+@router.get("/average_total_amount")
+async def get_invoices_above_average(user: CurrentActiveUser, invoice_repo: InvoiceDepends):
+
+    uid = user["uid"]
+
+    invoices = await invoice_repo.get_invoices_above_avg(uid=uid)
+
+    return invoices
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_one_invoice(invoice: ExistingInvoice):

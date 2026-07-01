@@ -166,3 +166,14 @@ class InvoiceRepo:
             "by_status":[row._asdict() for row in sub_result.all()],
             "overdue_updated": overdue_row
         }
+
+    async def get_invoices_above_avg(self, uid):
+
+        sub_query = (select(func.avg(Invoice.total_amount)).where(Invoice.owner_id == uid)).scalar_subquery()
+
+        stmt = select(Invoice).where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
+
+        result = await self.db.execute(stmt)
+
+
+        return result.scalars().all()
