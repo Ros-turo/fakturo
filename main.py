@@ -1,5 +1,7 @@
+import asyncio
+
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 
 from logging_config import logger
 from contextlib import asynccontextmanager
@@ -10,12 +12,13 @@ from sqlalchemy import text
 from database import engine
 from middleware import TimingLoggingMiddleware, SecondMiddleware
 from routers import clients, auth, invoices
+from sockets import wbs
 from exceptions import FakturoNotFoundError
 
 
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(app: FastAPI):
     logger.info("Try to connect to database")
     try:
         async with engine.connect() as conn:
@@ -35,6 +38,7 @@ app.add_middleware(TimingLoggingMiddleware) #1 Global wrapper
 app.include_router(clients.router)
 app.include_router(auth.router)
 app.include_router(invoices.router)
+app.include_router(wbs)
 
 
 # Exceptions
