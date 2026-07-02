@@ -181,12 +181,6 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],) -> dict:
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
-def get_user_id(user: CurrentUser) -> int:
-
-    return user["uid"]
-
-UserID = Annotated[int, Depends(get_user_id)]
-
 
 async def get_current_user_active(user: CurrentUser, repo: UserDepends):
 
@@ -200,6 +194,19 @@ async def get_current_user_active(user: CurrentUser, repo: UserDepends):
 
 CurrentActiveUser = Annotated[dict, Depends(get_current_user_active)]
 
+
+def get_user_id(user: CurrentUser) -> int:
+
+    return user["uid"]
+
+UserID = Annotated[int, Depends(get_user_id)]
+
+
+def get_security_user_id(user: CurrentActiveUser):
+
+    return user["uid"]
+
+SecurityID = Annotated[int, Depends(get_security_user_id)]
 
 @router.post('/register')
 async def register(user_data: UserCreate, repo: UserDepends):

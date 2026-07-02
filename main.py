@@ -13,7 +13,7 @@ from database import engine
 from middleware import TimingLoggingMiddleware, SecondMiddleware
 from routers import clients, auth, invoices
 from sockets import wbs
-from exceptions import FakturoNotFoundError
+from exceptions import FakturoNotFoundError, FakturoDeleteError, FakturoConflictError
 
 
 
@@ -43,13 +43,28 @@ app.include_router(wbs)
 
 # Exceptions
 @app.exception_handler(FakturoNotFoundError)
-def invoice_not_found_exception(request: Request, exc: FakturoNotFoundError) -> JSONResponse :
+def not_found_exception(request: Request, exc: FakturoNotFoundError) -> JSONResponse :
 
     return JSONResponse(
         status_code=404,
         content={"detail": f"{exc.resource_name} {exc.resource_id} is not found"}
     )
 
+@app.exception_handler(FakturoDeleteError)
+def cant_delete_exception(request: Request, exc: FakturoDeleteError) -> JSONResponse:
+
+    return JSONResponse(
+        status_code= 405,
+        content={"detail": f"{exc.resource_name}: {exc.resource_reason}"}
+    )
+
+@app.exception_handler(FakturoConflictError)
+def conflict_error(request:Request, exc: FakturoConflictError):
+
+    return JSONResponse(
+        status_code=409,
+        content={"detail": f"{exc.resource_name}: {exc.exc_detail}"}
+    )
 
 @app.get('/')
 def info():

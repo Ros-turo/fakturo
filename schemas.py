@@ -88,12 +88,12 @@ class InvoiceCreate(BaseModel):
     invoice_items: list[InvoiceItemCreate]
     client_id: Annotated[int, Field(ge=1)]
 
-    @field_validator("due_date")
-    @classmethod
-    def due_date_not_in_past(cls, value: date) -> date:
-        if value < date.today():
-            raise ValueError("Due date cannot be in the past" )
-        return value
+    # @field_validator("due_date")
+    # @classmethod
+    # def due_date_not_in_past(cls, value: date) -> date:
+    #     if value < date.today():
+    #         raise ValueError("Due date cannot be in the past" )
+    #     return value
 
     @model_validator(mode="after")
     def due_date_after_issue_date(self):

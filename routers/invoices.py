@@ -4,9 +4,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
 from starlette.background import BackgroundTasks
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, JSONResponse
 
-from routers.auth import CurrentUser, CurrentActiveUser, UserID
+from routers.auth import CurrentUser, CurrentActiveUser, UserID, SecurityID
 from schemas import InvoiceCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
     InvoiceListResponse, InvoiceByStatus, BulkPDFResponse
 from db_models import Invoice
@@ -14,7 +14,7 @@ from logging_config import logger
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
 from pdf import invoice_pdf
-from exceptions import InvoiceNotFoundError
+from exceptions import InvoiceNotFoundError, InvoiceDeleteError, InvoiceConflict
 
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -25,14 +25,21 @@ def get_invoice_repo(db: DBSession):
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
 
-async def invoice_exists_checker(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
+async def invoice_getter(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
         raise InvoiceNotFoundError(invoice_id=invoice_id)
     return invoice
 
-ExistingInvoice = Annotated[Invoice, Depends(invoice_exists_checker)]
+GetterInvoice = Annotated[Invoice, Depends(invoice_getter)]
 
+def draft_invoice_checker(invoice: GetterInvoice):
+
+    if invoice.status == Status.draft:
+        return invoice
+    raise InvoiceDeleteError("Not allowed to delete invoices that was sent already ")
+
+DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]
 
 # Background tasks
 
@@ -150,11 +157,11 @@ async def get_invoices_above_average(user: CurrentActiveUser, invoice_repo: Invo
     return invoices
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-async def get_one_invoice(invoice: ExistingInvoice):
+async def get_one_invoice(invoice: GetterInvoice):
     return invoice
 
 @router.get("/{invoice_id}/pdf")
-async def invoice_to_pdf(invoice: ExistingInvoice):
+async def invoice_to_pdf(invoice: GetterInvoice):
     """ Convert invoice to pdf"""
 
     pdf = invoice_pdf(invoice)
@@ -165,9 +172,25 @@ async def invoice_to_pdf(invoice: ExistingInvoice):
     )
 
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
-async def change_status(invoice: ExistingInvoice, user: CurrentActiveUser,
-                  new_status: Status, repo: InvoiceDepends):
+async def change_status(invoice: GetterInvoice, user: CurrentActiveUser,
+                        new_status: Status, repo: InvoiceDepends):
     await repo.change_invoice_status(invoice=invoice, new_status=new_status)
     return invoice
+
+
+@router.delete("/{invoice_id}")
+async def delete_draft_invoice(s_uid: SecurityID, invoice: DraftChecker,
+                                  invoice_repo: InvoiceDepends):
+
+    result = await invoice_repo.delete_invoice(invoice)
+
+    if result:
+        logger.warning(f"Invoice {invoice.id =} {invoice.invoice_number= } was deleted suspicious")
+        raise InvoiceConflict("Invoice was already deleted, if it's wasn't you please change a password and contact us to help")
+
+    return JSONResponse(
+        status_code=200,
+        content = {"detail": " Invoice is deleted"}
+    )
 
 
