@@ -1,29 +1,63 @@
 import asyncio
+from asyncio import sleep
+from contextlib import asynccontextmanager
 
-from fastapi import WebSocket, WebSocketDisconnect, APIRouter
+from fastapi import WebSocket, WebSocketDisconnect, APIRouter, HTTPException, Path
+
+from routers.auth import UserID
 
 from logging_config import logger
 
+
+class ConnectionManager:
+
+    def __init__(self):
+        self.chats = {}
+        self.connected_users: dict[int, WebSocket] = {}
+
+    async def connect(self, uid:int, wbs: WebSocket):
+
+        self.connected_users[uid] = wbs
+        await wbs.accept()
+
+    def disconnect(self, uid):
+        self.connected_users.pop(uid)
+        print(self.connected_users)
+
+    async def sender(self, uid, message):
+
+        for user, wbs in self.connected_users.items():
+            if user == uid:
+                continue
+            else:
+                await wbs.send_text(message)
+
 wbs = APIRouter(prefix="/ws")
+manager = ConnectionManager()
 
-async def receiver(websocket: WebSocket):
-    while True:
-        text = await websocket.receive_text()
-        await websocket.send_text(f"Server detect a message: {text}")
-
-async def ticker(websocket: WebSocket):
-
-    while True:
-        await asyncio.sleep(2)
-        await websocket.send_text("Ticker activate")
-
-@wbs.websocket('/')
+@wbs.websocket('/chat')
 async def chat(websocket: WebSocket):
 
-    await websocket.accept()
-    coros = [receiver(websocket), ticker(websocket)]
+    uid = websocket.query_params.get("uid")
+    if uid is None:
+        await websocket.close(code=1008, reason="Missing uid")
+        return
+
+    # Placeholder for take name, surname from db
+    await manager.connect( wbs=websocket, uid=uid)
+
     try:
-        async with asyncio.TaskGroup() as tg:
-            tasks = [tg.create_task(c) for c in coros]
-    except* WebSocketDisconnect:
-        logger.info("Client was disconnected")
+        while True:
+            message = await websocket.receive_text()
+            await manager.sender(uid, message)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        manager.disconnect(uid)
+
+
+    ...
+
+
+
+
