@@ -80,20 +80,22 @@ class InvoiceItemResponse(InvoiceItemCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
-class InvoiceCreate(BaseModel):
-
+class InvoiceBase(BaseModel):
     invoice_number: str
     issue_date: Annotated[date, Field(default_factory=date.today)]
     due_date: Annotated[date, Field()]
-    invoice_items: list[InvoiceItemCreate]
     client_id: Annotated[int, Field(ge=1)]
 
-    # @field_validator("due_date")
-    # @classmethod
-    # def due_date_not_in_past(cls, value: date) -> date:
-    #     if value < date.today():
-    #         raise ValueError("Due date cannot be in the past" )
-    #     return value
+class InvoiceCreate(InvoiceBase):
+
+    invoice_items: list[InvoiceItemCreate]
+
+    @field_validator("due_date")
+    @classmethod
+    def due_date_not_in_past(cls, value: date) -> date:
+        if value < date.today():
+            raise ValueError("Due date cannot be in the past" )
+        return value
 
     @model_validator(mode="after")
     def due_date_after_issue_date(self):
@@ -102,7 +104,7 @@ class InvoiceCreate(BaseModel):
         return self
 
 
-class InvoiceResponse(InvoiceCreate):
+class InvoiceResponse(InvoiceBase):
     id: int
     status: Status
     created_at: datetime
