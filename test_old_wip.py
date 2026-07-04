@@ -47,6 +47,9 @@ async def registered_user(client):
         "ico": "12345678",
         "city": "Praha",
         "psc": "11000",
+        "street": "Partyzanska",
+        "house_number": "32",
+
     })
     return {
         "username": "test@fakturo.cz",
