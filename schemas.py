@@ -153,3 +153,8 @@ class BulkPDFResponse(BaseModel):
     denied_ids: set[int]
     created_count: int
     size: int
+
+class RefreshTokensResponse(BaseModel):
+
+    jti: str
+    expired_at: datetime

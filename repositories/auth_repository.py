@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database import DBSession
 from db_models import RefreshToken
@@ -31,11 +31,29 @@ class AuthRepo:
 
         return None
 
-    async def revoke_token(self, token_data:RefreshToken) -> None:
+    async def revoke_token(self, token:RefreshToken) -> None:
 
-        token_data.revoked = True
+        token.revoked = True
         await self.db.commit()
+
+    async def bulk_revoke_tokens(self, tokens: list[RefreshToken]):
+
+        for token in tokens:
+            token.revoked = True
+        await self.db.commit()
+
 
     async def delete_token(self, token):
-        self.db.delete(token)
+        await self.db.delete(token)
         await self.db.commit()
+
+    async def get_actual_tokens(self, uid: int) -> list[RefreshToken]:
+        now = datetime.now(timezone.utc)
+        stmt = select(RefreshToken).where(RefreshToken.user_id == uid,
+                                          RefreshToken.revoked == False,
+                                          RefreshToken.expired_at > now)
+
+        db_query = await self.db.execute(stmt)
+
+        tokens = db_query.scalars().all()
+        return tokens
