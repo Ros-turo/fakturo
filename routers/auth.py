@@ -1,7 +1,7 @@
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie
+from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 
@@ -9,7 +9,7 @@ from pwdlib import PasswordHash
 from jose import jwt, JWTError
 from starlette.responses import JSONResponse
 
-from schemas import UserCreate
+from schemas import UserCreate, RefreshTokensResponse
 from database import DBSession, SessionLocal
 from db_models import User, RefreshToken
 from settings import settings
@@ -249,7 +249,7 @@ async def token_refresh(request: Request, response: Response, auth_repo: AuthDep
     token_data = await auth_repo.get_refresh_token(jti=jti)
     if token_data is None or not check_refresh_token(token_data.expired_at,
                                                      token_data.revoked):
-        raise HTTPException(status_code=401, detail="Refresh token ")
+        raise HTTPException(status_code=401, detail="Refresh token is not found")
 
     await auth_repo.revoke_token(token_data)
 
@@ -283,3 +283,34 @@ async def logout(request: Request, auth_repo: AuthDepends,
         "status": "logout"
     }
 
+@router.post("/logout_device/all")
+async def logout_all_devices(uid: SecurityID, auth_repo: AuthDepends):
+
+    tokens = await auth_repo.get_actual_tokens(uid=uid)
+    await auth_repo.bulk_revoke_tokens(tokens)
+
+    return JSONResponse(status_code=200,
+                        content={
+                            "message": "Successful logout"
+                        })
+
+
+@router.get("/sessions", response_model=list[RefreshTokensResponse])
+async def get_actual_sessions(uid: SecurityID, auth_repo: AuthDepends):
+
+    tokens = await auth_repo.get_actual_tokens(uid=uid)
+    return tokens
+
+@router.post("/logout_device/{jti}")
+async def logout_by_jti(jti: Annotated[str, Path()], uid: SecurityID, auth_repo: AuthDepends):
+
+    token = await auth_repo.get_refresh_token(jti=jti)
+    if token and token.user_id == uid:
+
+        await auth_repo.revoke_token(token=token)
+        return JSONResponse(status_code=200,
+                            content={
+                                "message": "Device was success logout"
+                            })
+
+    raise HTTPException(status_code=403, detail="Not found device")
