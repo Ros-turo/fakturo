@@ -49,7 +49,7 @@ class ClientAres(ClientDefault):
 class ClientCreate(ClientDefault):
 
     email: EmailStr | None = None
-    phone_number: Annotated[str | None, Field(pattern=r"\d{9}")] = None
+    phone_number: Annotated[str | None, Field(pattern=r"^\d{9}$")] = None
 
 class ClientResponse(ClientCreate):
 
@@ -142,7 +142,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     name: str
     surname: str
-    ico: Annotated[str, Field(pattern=r"\d{8}")]
+    ico: Annotated[str, Field(pattern=r"^\d{8}$")]
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str
     psc: str
