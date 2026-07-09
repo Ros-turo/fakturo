@@ -13,7 +13,7 @@ from database import engine
 from middleware import TimingLoggingMiddleware, SecondMiddleware
 from routers import clients, auth, invoices
 from sockets import wbs
-from exceptions import FakturoNotFoundError, FakturoDeleteError, FakturoConflictError
+from exceptions import FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
 
 
 
@@ -64,6 +64,17 @@ def conflict_error(request:Request, exc: FakturoConflictError):
     return JSONResponse(
         status_code=409,
         content={"detail": f"{exc.resource_name}: {exc.exc_detail}"}
+    )
+
+@app.exception_handler(BusinessRuleError)
+def business_rule_error(request: Request, exc: BusinessRuleError):
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "rule_name": exc.rule,
+            "detail": exc.detail
+        }
     )
 
 @app.get('/')

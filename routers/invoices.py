@@ -14,7 +14,7 @@ from logging_config import logger
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
 from pdf import invoice_pdf
-from exceptions import InvoiceNotFoundError, InvoiceDeleteError, InvoiceConflict
+from exceptions import InvoiceNotFoundError, InvoiceDeleteError, InvoiceConflict, InvalidStatusChangeError
 
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -40,6 +40,12 @@ def draft_invoice_checker(invoice: GetterInvoice):
     raise InvoiceDeleteError("Not allowed to delete invoices that was sent already ")
 
 DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]
+
+def valid_status_change(old_status: Status, new_status: Status):
+
+    if ((old_status == Status.paid) or (old_status == Status.overdue and new_status == Status.draft) or
+            (old_status == Status.sent and new_status == Status.draft)):
+        raise InvalidStatusChangeError(from_status=old_status, to_status=new_status)
 
 # Background tasks
 
@@ -174,6 +180,9 @@ async def invoice_to_pdf(invoice: GetterInvoice):
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
 async def change_status(invoice: GetterInvoice, user: CurrentActiveUser,
                         new_status: Status, repo: InvoiceDepends):
+    old_status = invoice.status
+    valid_status_change(old_status=old_status, new_status=new_status)
+
     await repo.change_invoice_status(invoice=invoice, new_status=new_status)
     return invoice
 

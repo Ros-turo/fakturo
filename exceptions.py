@@ -1,9 +1,10 @@
+from schemas import Status
+
 class FakturoNotFoundError(Exception):
 
     def __init__(self, resource_name, resource_id):
         self.resource_name: str = resource_name
         self.resource_id: int = resource_id
-
 
 class InvoiceNotFoundError(FakturoNotFoundError):
 
@@ -14,6 +15,7 @@ class ClientNotFoundError(FakturoNotFoundError):
 
     def __init__(self, client_id):
         super().__init__(resource_name="Client", resource_id=client_id)
+
 
 
 class FakturoDeleteError(Exception):
@@ -39,3 +41,18 @@ class InvoiceConflict(FakturoConflictError):
 
     def __init__(self, exc_detail):
         super().__init__(resource_name="Invoice", exc_detail=exc_detail)
+
+
+
+class BusinessRuleError(Exception):
+
+    def __init__(self, rule_name: str, detail: str):
+
+        self.rule = rule_name
+        self.detail = detail
+
+class InvalidStatusChangeError(BusinessRuleError):
+    
+    def __init__(self, from_status:Status, to_status:Status):
+        super().__init__(rule_name="Invalid changing status",
+                         detail= f"You cannot change status from {from_status.value} to {to_status.value}")
