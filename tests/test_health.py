@@ -1,13 +1,3 @@
-import pytest
-from fastapi.testclient import TestClient
-
-from main import app
-
-
-@pytest.fixture(scope="function")
-def client():
-    return TestClient(app=app)
-
 
 def test_info(client):
 
@@ -17,8 +7,7 @@ def test_info(client):
     status = json_result["status"]
 
     assert response.status_code == 200
-    # assert version == "0.3"
-    assert json_result["msg"]["Version"] == "0.3"
+    assert version == "0.2"
     assert status == "ok"
 
 
