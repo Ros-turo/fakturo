@@ -33,7 +33,7 @@ class VatRate(int, Enum):
 
 class ClientDefault(BaseModel):
     name: str
-    ico: Annotated[str, Field(pattern=r"\d{8}")]
+    ico: Annotated[str, Field(pattern=r"^\d{8}$")]
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str
     psc: str
