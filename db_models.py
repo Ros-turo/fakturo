@@ -1,6 +1,11 @@
+from datetime import datetime, date
+from decimal import Decimal
+from typing import List
+
 from sqlalchemy import (Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date,
-                        Enum as SEnum, UniqueConstraint, event)
-from sqlalchemy.orm import relationship
+                        Enum as SEnum, UniqueConstraint, event, select, and_)
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from database import Base
 from schemas import Status, Action
@@ -8,7 +13,6 @@ from schemas import Status, Action
 class User(Base):
     __tablename__ = 'users'
 
-    id = Column(Integer,primary_key=True, index=True)
     name = Column(String, nullable=False)
     surname = Column(String, nullable=False)
     ico = Column(String, nullable=False)
@@ -30,7 +34,6 @@ class User(Base):
 class Client(Base):
     __tablename__ = "clients"
 
-    id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=True)
     ico = Column(String, nullable=False)
@@ -51,21 +54,28 @@ class Client(Base):
 class Invoice(Base):
     __tablename__ = "invoices"
 
-    id = Column(Integer, primary_key=True)
-    invoice_number = Column(String, unique=True, index=True, nullable=False)
-    issue_date = Column(Date, server_default=func.current_date(), nullable=False)
-    due_date = Column(Date, nullable=False)
-    status = Column(SEnum(Status), nullable=False, default=Status.draft)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    total_amount = Column(Numeric(10,2), nullable=True)
+    invoice_number:Mapped[str] = mapped_column(unique=True, index=True)
+    issue_date:Mapped[date] = mapped_column(server_default=func.current_date())
+    due_date:Mapped[date] = mapped_column()
+    status:Mapped[Status] = mapped_column(SEnum(Status), default=Status.draft)
+    created_at:Mapped[datetime] = mapped_column(server_default=func.now())
+    total_amount:Mapped[Decimal] = mapped_column()
 
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    owner_id:Mapped[int] = mapped_column(ForeignKey("users.id"))
+    client_id:Mapped[int] = mapped_column(ForeignKey("clients.id"))
 
-    owner = relationship("User", back_populates="invoices")
-    client = relationship("Client", back_populates="invoices")
-    invoice_items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
-    tags = relationship("InvoiceTag", back_populates="invoice")
+    owner:Mapped["User"] = relationship(back_populates="invoices")
+    client:Mapped["Client"] = relationship(back_populates="invoices")
+    invoice_items:Mapped[List["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan")
+    tags:Mapped[List["InvoiceTag"]] = relationship(back_populates="invoice")
+
+    @hybrid_property
+    def is_overdue(self):
+        return self.status != Status.paid and self.due_date < date.today()
+
+    @is_overdue.expression
+    def is_overdue(cls):
+        return and_(cls.status != Status.paid, cls.due_date < date.today())
 
 @event.listens_for(Invoice.status, "set")
 def on_status_change(target, value, oldvalue, _):
@@ -76,7 +86,6 @@ def on_status_change(target, value, oldvalue, _):
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
 
-    id = Column(Integer, primary_key=True)
     description = Column(String, nullable=False)
     unit_price = Column(Numeric(10,2), nullable=False)
     quantity = Column(Numeric(10,2), nullable=False)
@@ -100,7 +109,6 @@ class Tag(Base):
 
     __table_args__ = (UniqueConstraint("name","owner_id", name="uq_tag_name_owner"),)
 
-    id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     invoices = relationship("InvoiceTag", back_populates="tag")
@@ -108,7 +116,6 @@ class Tag(Base):
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
-    id = Column(Integer, primary_key=True)
     table_name = Column(String, nullable=False)
     row_id = Column(Integer, nullable=False)
     action = Column(SEnum(Action), nullable=False)
@@ -119,7 +126,6 @@ class AuditLog(Base):
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
-    id = Column(Integer, primary_key=True)
     jti = Column(String, nullable=False)
     expired_at = Column(DateTime(timezone=True), nullable=False)
     revoked = Column(Boolean, default=False)
