@@ -7,7 +7,7 @@ from main import app
 from database import Base, get_db
 from settings import settings
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def engine():
     engine = create_async_engine(settings.test_db_url)
     async with engine.begin() as conn:
@@ -17,7 +17,8 @@ async def engine():
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
-@pytest_asyncio.fixture
+
+@pytest_asyncio.fixture(scope="function")
 async def db(engine):
     async with engine.begin() as conn:
         async with AsyncSession(bind=conn) as session:
