@@ -1,4 +1,5 @@
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from urllib import response
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -6,6 +7,24 @@ from main import app
 from routers.auth import get_current_user
 from routers.clients import get_client_repo
 
+async def test_create_client(client):
+
+    mock_client_data = {
+  "name": "string",
+  "ico": "91291715",
+  "dic": "SK7082783024",
+  "city": "string",
+  "psc": "string",
+  "street": "string",
+  "house_number": "string",
+  "vat": True,
+  "email": "user@example.com",
+  "phone_number": "170418643"
+}
+
+    response = await client.post("/clients/", json=mock_client_data)
+
+    assert response.status_code == 200
 
 async def test_get_ico_success(client):
 

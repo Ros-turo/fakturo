@@ -137,7 +137,6 @@ class InvoiceStats(BaseModel):
 
 class UserCreate(BaseModel):
 
-    name: Annotated[str, Field(min_length=5)]
     password: Annotated[str, Field(min_length=8)]
     email: EmailStr
     name: str
@@ -146,8 +145,8 @@ class UserCreate(BaseModel):
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str
     psc: str
-    street: str | None = None
-    house_number: str | None = None
+    street: str
+    house_number: str
 
 class BulkPDFResponse(BaseModel):
 

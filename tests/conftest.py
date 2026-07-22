@@ -38,28 +38,12 @@ async def db(engine):
         yield session
         await session.close()
         await conn.rollback()
-
 @pytest.fixture(scope="function")
-async def client(db):
-
+async def _base_client(db):
     def get_override_db():
         yield db
-
-    app.dependency_overrides[get_db] =get_override_db
-    app.dependency_overrides[get_current_user] = lambda: {"uid": 1}
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
-    ) as ac:
-        yield ac
-    app.dependency_overrides.clear()
-
-@pytest.fixture(scope="function")
-async def unauthorized_client():
-
-    def get_override_db():
-        yield db
-
+    app.user_middleware = []
+    app.middleware_stack = None
     app.dependency_overrides[get_db] = get_override_db
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -67,3 +51,31 @@ async def unauthorized_client():
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+@pytest.fixture(scope="function")
+async def unauthorized_client(_base_client):
+    return _base_client
+
+@pytest.fixture(scope="function")
+async def client(_base_client):
+
+    user_data = {
+        "password": "stringst",
+        "email": "user@example.com",
+        "name": "string",
+        "surname": "string",
+        "ico": "14044984",
+        "dic": "SK22500300",
+        "city": "string",
+        "psc": "string",
+        "street": "string",
+        "house_number": "string"
+    }
+    response = await _base_client.post("/auth/register", json=user_data)
+    print(response.status_code)
+    print(response.text)
+    uid = response.json()['UID']
+    app.dependency_overrides[get_current_user] = lambda: {"uid": uid}
+    yield _base_client
+    app.dependency_overrides.clear()
+
