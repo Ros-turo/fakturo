@@ -1,5 +1,6 @@
 import secrets
 from typing import Annotated
+from urllib import request
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -47,52 +48,53 @@ def verify_password(password: str, hashed_pwd) -> bool:
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
-logging_attempt = {}
-blocked_ip = {}
+attempt_logger = {}
 
-def ip_blocker(ip: str) -> None:
+class LoginAttempt:
 
-    blocked_to = datetime.now() + timedelta(minutes=10)
-    blocked_ip[ip] = blocked_to
+    def __init__(self):
 
-    logger.warning(f"{ip} has to many attempts and blocked to 10 minutes")
+        self.attempt_count = 0
+        self.timeout_to = datetime.now(timezone.utc)
 
-    raise HTTPException(status_code=429, detail="Too many attempts")
+    def check_timeout(self) -> bool:
+        now = datetime.now(timezone.utc)
 
-def checker_block(request: Request) -> None:
+        return self.timeout_to < now
 
-    ip = request.client.host
+    def logging_attempt(self) -> None:
 
-    blocked_to = blocked_ip.get(ip, None)
+        self.attempt_count += 1
 
-    if blocked_to is None or blocked_to < datetime.now():
+        if self.attempt_count > 2:
+            self.timeout_to = datetime.now(timezone.utc) + timedelta(seconds=2 ** self.attempt_count)
+
         return None
 
-    raise HTTPException(status_code=429, detail=" Too many attempts, try later")
+    def clear_attempt(self) -> None:
+        self.attempt_count = 0
+        self.timeout_to = datetime.now(timezone.utc)
 
-def remove_attempt(ip: str) -> None:
-    logging_attempt[ip] = []
+def get_ip_address(request:Request) -> str:
+    return request.client.host
 
-def logger_attempt(request: Request) -> None:
+IPDepends = Annotated[str, Depends(get_ip_address)]
 
-    ip = request.client.host
-    
-    now = datetime.now()
-    future = now + timedelta(minutes=10)
+def get_la_inst(ip: IPDepends) -> LoginAttempt:
 
-    if logging_attempt.get(ip) is None:
-        logging_attempt[ip] = []
+    if ip not in attempt_logger:
+        new_ip = LoginAttempt()
+        attempt_logger[ip] = new_ip
 
-    logging_attempt[ip].append(future)
+    return attempt_logger[ip]
 
-    for attempt in logging_attempt[ip][:]:
-        if now > attempt:
-            logging_attempt[ip].remove(attempt)
+LADepends = Annotated[LoginAttempt, Depends(get_la_inst)]
 
-    if len(logging_attempt[ip]) >= 5:
-        ip_blocker(ip)
-
-    return ip
+def check_timeout(inst: LADepends):
+    logger.debug(f"Checking timeout for {inst}")
+    if not inst.check_timeout():
+        logger.debug(f"Blocked {inst}")
+        raise blocked_user_exception()
 
 
 def create_access_token(email:str, uid:int) -> str:
@@ -222,19 +224,20 @@ async def register(user_data: UserCreate, repo: UserDepends):
 
     return {'msg': 'User registered', 'status': 'ok', 'UID': user.id}
 
-@router.post('/login', dependencies=[Depends(checker_block)])
+@router.post('/login', dependencies=[Depends(check_timeout)])
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_repo: UserDepends, auth_repo: AuthDepends,
-                ip: Annotated[str, Depends(logger_attempt)],response: Response):
+                inst: LADepends, response: Response):
 
     current_user = await user_repo.get_by_email(form_data.username)
     if not current_user or not verify_password(form_data.password, current_user.hashed_password):
+        inst.logging_attempt()
         raise invalid_credentials_exception()
 
+    inst.clear_attempt()
     uid = current_user.id
     email = current_user.email
 
-    remove_attempt(ip)
     content = await token_sender(email=email, uid=uid, response=response, auth_repo= auth_repo)
 
     return content
