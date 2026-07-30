@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from database import engine
-from middleware import TimingLoggingMiddleware, SecondMiddleware
+from middleware import TimingLoggingMiddleware, SecondMiddleware, CORSMiddleware
 from routers import clients, auth, invoices
 from sockets import wbs
 from exceptions import FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
@@ -33,7 +33,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(SecondMiddleware) #2 Inner wrapper
-app.add_middleware(TimingLoggingMiddleware) #1 Global wrapper
+app.add_middleware(TimingLoggingMiddleware)
+app.add_middleware(CORSMiddleware)#1 Global wrapper
 
 app.include_router(clients.router)
 app.include_router(auth.router)
