@@ -78,13 +78,55 @@ class CORSMiddleware:
 
         await self.app(scope, receive, send_wrapper)
 
+"""
+Zadání: Napiš middleware RequestLoggingMiddleware, co:
 
-class SecondMiddleware(BaseHTTPMiddleware):
+Přečte celé tělo requestu (přes receive()) předtím, než ho appka dostane
+Zaloguje velikost těla v bajtech (len(body))
+Musí tělo znovu zpřístupnit appce beze změny — pokud tělo jednou přečteš přes receive(), 
+appka by ho už neviděla (stream se dá přečíst jen jednou), takže musíš vymyslet, jak ho "vrátit zpátky"
 
-    async def dispatch(self, request: Request,  call_next: RequestResponseEndpoint) -> Response:
+Otázka na rozjezd, než začneš: receive() může vrátit víc zpráv za sebou 
+(pokud je tělo velké, přijde po částech, s more_body: True/False flagem).
+ Jak zjistíš, že jsi přečetl celé tělo (žádná další část nepřijde)?"""
 
-        logger.info("Inner Middleware start")
-        response = await call_next(request)
-        logger.info("Inner Middleware finish")
+class RequestLoggingMiddleware:
 
-        return response
+    def __init__(self,app):
+        self.app = app
+
+    async def __call__(self,scope, receive, send):
+
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+
+        body = []
+        while True:
+            message:dict = await receive()
+            body_flag = message.get("more_body")
+
+            body.append(message)
+
+            if body_flag is None or not body_flag:
+                break
+
+        index = 0
+        async def receive_wrapper():
+
+            nonlocal index
+
+            if index < len(body):
+                message = body[index]
+                index += 1
+                return message
+
+            return await receive()
+
+        logger.info(f"{sum([len(message["body"]) for message in body])}, body: {body}")
+
+        await self.app(scope, receive_wrapper, send)
+
+
+
