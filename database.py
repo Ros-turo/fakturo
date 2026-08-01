@@ -1,6 +1,6 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession, AsyncEngine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from typing import Annotated
 from settings import settings
 
@@ -14,6 +14,7 @@ engine: AsyncEngine = create_async_engine(settings.db_url,
 SessionLocal =  async_sessionmaker(engine, autoflush= False, autocommit= False,expire_on_commit=False)
 
 class Base(DeclarativeBase):
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     pass
 
 async def get_db():
