@@ -48,14 +48,12 @@ def verify_password(password: str, hashed_pwd) -> bool:
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
-attempt_logger = {}
-
 class LoginAttempt:
 
-    def __init__(self):
+    def __init__(self) -> None:
 
-        self.attempt_count = 0
-        self.timeout_to = datetime.now(timezone.utc)
+        self.attempt_count: int = 0
+        self.timeout_to: datetime = datetime.now(timezone.utc)
 
     def check_timeout(self) -> bool:
         now = datetime.now(timezone.utc)
@@ -74,6 +72,8 @@ class LoginAttempt:
     def clear_attempt(self) -> None:
         self.attempt_count = 0
         self.timeout_to = datetime.now(timezone.utc)
+
+attempt_logger: dict[str, LoginAttempt] = {}
 
 def get_ip_address(request:Request) -> str:
     user = request.client
