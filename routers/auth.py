@@ -76,7 +76,12 @@ class LoginAttempt:
         self.timeout_to = datetime.now(timezone.utc)
 
 def get_ip_address(request:Request) -> str:
-    return request.client.host
+    user = request.client
+    if user:
+        return user.host
+    else:
+        return "Unknown"
+
 
 IPDepends = Annotated[str, Depends(get_ip_address)]
 

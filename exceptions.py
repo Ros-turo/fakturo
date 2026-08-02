@@ -2,9 +2,9 @@ from schemas import Status
 
 class FakturoNotFoundError(Exception):
 
-    def __init__(self, resource_name, resource_id):
-        self.resource_name: str = resource_name
-        self.resource_id: int = resource_id
+    def __init__(self, resource_name:str, resource_id:int):
+        self.resource_name = resource_name
+        self.resource_id = resource_id
 
 class InvoiceNotFoundError(FakturoNotFoundError):
 
