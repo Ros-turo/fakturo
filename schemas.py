@@ -49,7 +49,7 @@ class ClientAres(ClientDefault):
 class ClientCreate(ClientDefault):
 
     email: EmailStr | None = None
-    phone_number: Annotated[str | None, Field(pattern=r"\d{9}")] = None
+    phone_number: Annotated[str | None, Field(pattern=r"^\d{9}$")] = None
 
 class ClientResponse(ClientCreate):
 
@@ -137,17 +137,16 @@ class InvoiceStats(BaseModel):
 
 class UserCreate(BaseModel):
 
-    name: Annotated[str, Field(min_length=5)]
     password: Annotated[str, Field(min_length=8)]
     email: EmailStr
     name: str
     surname: str
-    ico: Annotated[str, Field(pattern=r"\d{8}")]
+    ico: Annotated[str, Field(pattern=r"^\d{8}$")]
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str
     psc: str
-    street: str | None = None
-    house_number: str | None = None
+    street: str
+    house_number: str
 
 class BulkPDFResponse(BaseModel):
 
