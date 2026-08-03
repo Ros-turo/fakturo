@@ -55,5 +55,5 @@ class AuthRepo:
 
         db_query = await self.db.execute(stmt)
 
-        tokens = db_query.scalars().all()
+        tokens = list(db_query.scalars().all())
         return tokens

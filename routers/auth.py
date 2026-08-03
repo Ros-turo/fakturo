@@ -204,7 +204,7 @@ CurrentActiveUser = Annotated[dict, Depends(get_current_user_active)]
 
 def get_user_id(user: CurrentUser) -> int:
 
-    return user["uid"]
+    return int(user["uid"])
 
 UserID = Annotated[int, Depends(get_user_id)]
 
@@ -224,7 +224,7 @@ async def register(user_data: UserCreate, repo: UserDepends):
 
     hashed_password = hash_password(user_data.password)
 
-    new_user = User(**user_data.model_dump(exclude="password"), hashed_password=hashed_password)
+    new_user = User(**user_data.model_dump(exclude={"password"}), hashed_password=hashed_password)
     user = await repo.create_user(new_user)
 
     return {'msg': 'User registered', 'status': 'ok', 'UID': user.id}
@@ -272,10 +272,10 @@ async def logout(request: Request, auth_repo: AuthDepends,
 
     try:
         payload = get_refresh_token_payload(request=request)
-        
+
     except HTTPException as e:
         if e.status_code == 401:
-            payload = False
+            payload = None
         else:
             raise
 

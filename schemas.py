@@ -63,12 +63,12 @@ class InvoiceItemCreate(BaseModel):
     vat_rate: VatRate
 
 
-    @computed_field
+    @computed_field # type: ignore [prop-decorator]
     @property
     def subtotal(self) -> Decimal:
         return round(self.unit_price*self.quantity, 2)
 
-    @computed_field
+    @computed_field # type: ignore [prop-decorator]
     @property
     def total_with_vat(self) -> Decimal:
         return round((self.subtotal*(1+Decimal(self.vat_rate/100))), 2)

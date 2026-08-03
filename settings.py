@@ -12,4 +12,4 @@ class Settings(BaseSettings):
     refresh_expire_days: int = 15
 
 
-settings =Settings()
+settings =Settings() # type:ignore [call-arg]
