@@ -37,4 +37,6 @@ jobs:
       - name: Run tests
         env:
           test_db_url: postgresql+asyncpg://testuser:testpass@localhost:5432/fakturo_test
+          DB_URL: ${{ secrets.DB_URL }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
         run: pytest
