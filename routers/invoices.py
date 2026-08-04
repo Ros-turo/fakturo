@@ -144,8 +144,8 @@ async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=
     if invoices_id:
         logger.warning(f"User {uid} attempted to access invoices not owned: {invoices_id}")
 
-    size = sum([len(pdf) for pdf in pdf_list])
-    created_count = len(tripped_id)
+    size = sum([len(pdf) for pdf in pdf_list if not isinstance(pdf, BaseException)])
+    created_count = len(tripped_id) - len([pdf for pdf in pdf_list if isinstance(pdf, BaseException)])
     return {
         "status": "ok",
         "Denied_id": invoices_id,

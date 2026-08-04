@@ -48,14 +48,12 @@ def verify_password(password: str, hashed_pwd) -> bool:
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
-attempt_logger = {}
-
 class LoginAttempt:
 
-    def __init__(self):
+    def __init__(self) -> None:
 
-        self.attempt_count = 0
-        self.timeout_to = datetime.now(timezone.utc)
+        self.attempt_count: int = 0
+        self.timeout_to: datetime = datetime.now(timezone.utc)
 
     def check_timeout(self) -> bool:
         now = datetime.now(timezone.utc)
@@ -75,8 +73,15 @@ class LoginAttempt:
         self.attempt_count = 0
         self.timeout_to = datetime.now(timezone.utc)
 
+attempt_logger: dict[str, LoginAttempt] = {}
+
 def get_ip_address(request:Request) -> str:
-    return request.client.host
+    user = request.client
+    if user:
+        return user.host
+    else:
+        return "Unknown"
+
 
 IPDepends = Annotated[str, Depends(get_ip_address)]
 
@@ -199,7 +204,7 @@ CurrentActiveUser = Annotated[dict, Depends(get_current_user_active)]
 
 def get_user_id(user: CurrentUser) -> int:
 
-    return user["uid"]
+    return int(user["uid"])
 
 UserID = Annotated[int, Depends(get_user_id)]
 
@@ -219,7 +224,7 @@ async def register(user_data: UserCreate, repo: UserDepends):
 
     hashed_password = hash_password(user_data.password)
 
-    new_user = User(**user_data.model_dump(exclude="password"), hashed_password=hashed_password)
+    new_user = User(**user_data.model_dump(exclude={"password"}), hashed_password=hashed_password)
     user = await repo.create_user(new_user)
 
     return {'msg': 'User registered', 'status': 'ok', 'UID': user.id}
@@ -267,10 +272,10 @@ async def logout(request: Request, auth_repo: AuthDepends,
 
     try:
         payload = get_refresh_token_payload(request=request)
-        
+
     except HTTPException as e:
         if e.status_code == 401:
-            payload = False
+            payload = None
         else:
             raise
 

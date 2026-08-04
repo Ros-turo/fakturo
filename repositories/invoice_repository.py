@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
-from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir
+from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir, InvoiceByStatus
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -126,15 +126,17 @@ class InvoiceRepo:
         self.db.add(invoice)
         await self.db.commit()
 
-    async def get_sum_by_status(self, uid:int):
-        result = await self.db.execute(select(Invoice.status,
+    async def get_sum_by_status(self, uid:int) -> list[InvoiceByStatus]:
+        raw_result = await self.db.execute(select(Invoice.status,
                                               func.count(Invoice.id).label("count"),
                                               func.sum(Invoice.total_amount).label("total"))
                                        .where(Invoice.owner_id == uid)
                                        .group_by(Invoice.status))
-        return [row._asdict() for row in result.all()]
+        result = list(raw_result.mappings().all())
 
-    async def update_overdue_invoices(self,uid:int):
+        return [InvoiceByStatus(**data) for data in result]
+
+    async def update_overdue_invoices(self,uid:int) -> int:
         stmt = (update(Invoice)
                 .where(Invoice.owner_id == uid,
                        Invoice.due_date < date.today(),
@@ -142,7 +144,7 @@ class InvoiceRepo:
                 .values(status = Status.overdue))
         result = await self.db.execute(stmt)
         await self.db.commit()
-        return result.rowcount
+        return int(result.rowcount) # type: ignore [attr-defined]
 
     async def invoice_stats(self, uid:int):
         overdue_row = await self.update_overdue_invoices(uid=uid)

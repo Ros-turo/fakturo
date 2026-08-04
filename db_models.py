@@ -70,7 +70,7 @@ class Invoice(Base):
     tags:Mapped[List["InvoiceTag"]] = relationship(back_populates="invoice")
 
     @hybrid_property
-    def is_overdue(self):
+    def is_overdue(self) -> bool:
         return self.status != Status.paid and self.due_date < date.today()
 
     @is_overdue.expression # type: ignore[no-redef]

@@ -11,20 +11,20 @@ from logging_config import logger
 
 class ConnectionManager:
 
-    def __init__(self):
-        self.chats = {}
+    def __init__(self) -> None:
+        # self.chats = {} - Placeholder for more rooms
         self.connected_users: dict[int, WebSocket] = {}
 
-    async def connect(self, uid:int, wbs: WebSocket):
+    async def connect(self, uid:int, wbs: WebSocket) -> None:
 
         self.connected_users[uid] = wbs
         await wbs.accept()
 
-    def disconnect(self, uid):
+    def disconnect(self, uid: int) -> None:
         self.connected_users.pop(uid)
         print(self.connected_users)
 
-    async def sender(self, uid, message):
+    async def sender(self, uid: int, message: str) -> None:
 
         for user, wbs in self.connected_users.items():
             if user == uid:
@@ -44,16 +44,17 @@ async def chat(websocket: WebSocket):
         return
 
     # Placeholder for take name, surname from db
-    await manager.connect( wbs=websocket, uid=uid)
+    i_uid = int(uid)
+    await manager.connect(wbs=websocket, uid=i_uid)
 
     try:
         while True:
             message = await websocket.receive_text()
-            await manager.sender(uid, message)
+            await manager.sender(i_uid, message)
     except WebSocketDisconnect:
         pass
     finally:
-        manager.disconnect(uid)
+        manager.disconnect(i_uid)
 
 
     ...
