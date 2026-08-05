@@ -1,7 +1,7 @@
 
-def test_info(client):
+async def test_info(client):
 
-    response = client.get("/")
+    response =  await client.get("/")
     json_result = response.json()
     version = json_result["msg"]["Version"]
     status = json_result["status"]
