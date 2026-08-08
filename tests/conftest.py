@@ -79,3 +79,17 @@ async def client(_base_client):
     yield _base_client
     app.dependency_overrides.clear()
 
+@pytest.fixture(scope="function")
+def valid_client_data():
+    return {
+  "name": "string",
+  "ico": "91291715",
+  "dic": "SK7082783024",
+  "city": "string",
+  "psc": "string",
+  "street": "string",
+  "house_number": "string",
+  "vat": True,
+  "email": "user@example.com",
+  "phone_number": "170418643"
+}
