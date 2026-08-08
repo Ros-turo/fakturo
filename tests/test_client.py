@@ -1,30 +1,33 @@
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
-from urllib import response
 
-import pytest
-from httpx import AsyncClient, ASGITransport
-from main import app
-from routers.auth import get_current_user
-from routers.clients import get_client_repo
+async def test_empty_clients_list(client):
 
-async def test_create_client(client):
+    response = await client.get("/clients/")
 
-    mock_client_data = {
-  "name": "string",
-  "ico": "91291715",
-  "dic": "SK7082783024",
-  "city": "string",
-  "psc": "string",
-  "street": "string",
-  "house_number": "string",
-  "vat": True,
-  "email": "user@example.com",
-  "phone_number": "170418643"
-}
+    data = response.json()
+    status_code = response.status_code
 
-    response = await client.post("/clients/", json=mock_client_data)
+    assert status_code == 200
+    assert data == []
 
-    assert response.status_code == 200
+async def test_create_client(client, valid_client_data):
+
+
+    response = await client.post("/clients/", json=valid_client_data)
+
+    assert response.status_code == 201
+
+    get_clients_from_db = await client.get("/clients/")
+
+    clients_from_db = get_clients_from_db.json()
+
+    assert len(clients_from_db) == 1
+
+    client_from_db = clients_from_db[0]
+
+    assert client_from_db["name"] == valid_client_data["name"]
+    assert client_from_db["email"] == valid_client_data["email"]
+    assert client_from_db["ico"] == valid_client_data["ico"]
 
 async def test_get_ico_success(client):
 

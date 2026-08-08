@@ -74,7 +74,7 @@ async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
 
     return response
 
-@router.post('/', response_model=ClientResponse)
+@router.post('/', response_model=ClientResponse, status_code=201)
 async def create_client(client: ClientCreate, user: CurrentUser,
                   repo: ClientDepends):
 
