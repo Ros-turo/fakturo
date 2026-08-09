@@ -54,13 +54,21 @@ async def test_get_client_not_found(user):
     assert status_code == 404
     assert data == {"detail": "Client 999999 is not found"}
 
-async def test_get_client_wrong_uid(user_with_one_client):
+async def test_get_client_wrong_uid(user_with_one_client, _base_user, user_data):
 
-    user, client_id = user_with_one_client
+    _, client_id = user_with_one_client
 
-    app.dependency_overrides[get_current_user] = lambda: {"uid": 999999}
-    get_client_from_db = await user.get(f"/clients/{client_id}")
-    app.dependency_overrides.pop(get_current_user)
+    new_email = f"new_{user_data['email']}"
+    new_user_data = user_data.copy()
+    new_user_data["email"] = new_email
+    response = await _base_user.post("auth/register", json=new_user_data)
+    new_user_id = response.json()["UID"]
+
+    try:
+        app.dependency_overrides[get_current_user] = lambda: {"uid": new_user_id}
+        get_client_from_db = await _base_user.get(f"/clients/{client_id}")
+    finally:
+        app.dependency_overrides.pop(get_current_user)
 
     assert get_client_from_db.status_code == 404
 
