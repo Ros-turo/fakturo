@@ -54,7 +54,7 @@ async def test_get_client_not_found(user):
     assert status_code == 404
     assert data == {"detail": "Client 999999 is not found"}
 
-async def test_get_client_wrong_uid(user_with_one_client, _base_user, user_data):
+async def test_get_client_ownership_isolation(user_with_one_client, _base_user, user_data):
 
     _, client_id = user_with_one_client
 
@@ -71,6 +71,56 @@ async def test_get_client_wrong_uid(user_with_one_client, _base_user, user_data)
         app.dependency_overrides.pop(get_current_user)
 
     assert get_client_from_db.status_code == 404
+
+async def test_delete_client_success(user_with_one_client):
+
+    user, client_id = user_with_one_client
+    response_delete = await user.delete(f"/clients/{client_id}")
+    response_not_found = await user.get(f"/clients/{client_id}")
+
+    status_code_delete = response_delete.status_code
+    status_code_not_found = response_not_found.status_code
+
+    assert status_code_delete == 204
+    assert status_code_not_found == 404
+
+async def test_delete_client_not_found(user):
+
+    response = await user.delete("/clients/999999")
+    status_code_not_found = response.status_code
+
+    assert status_code_not_found == 404
+
+async def test_delete_client_ownership_isolation(user_with_one_client, _base_user, user_data):
+
+    user, client_id = user_with_one_client
+    user_override = app.dependency_overrides.pop(get_current_user)
+
+    new_email = f"new_{user_data['email']}"
+    new_user_data = user_data.copy()
+    new_user_data["email"] = new_email
+
+    create_new_user = await _base_user.post("/auth/register", json= new_user_data)
+    new_user_id = create_new_user.json()["UID"]
+
+
+    try:
+        app.dependency_overrides[get_current_user] = lambda: {"uid": new_user_id}
+        response = await _base_user.delete(f"/clients/{client_id}")
+    finally:
+        app.dependency_overrides[get_current_user] = user_override
+
+    status_code = response.status_code
+    data = response.json()
+
+    assert status_code == 404
+    assert data == {"detail": "Not found"}
+
+
+    client_exist = await user.get(f"/clients/{client_id}")
+
+    assert client_exist.status_code == 200
+
 
 async def test_get_ico_success(user):
 
