@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from settings import settings
 from main import app
 from database import Base, get_db
-from routers.auth import get_current_user
+from routers.auth import get_current_user, attempt_logger
 
 @pytest.fixture(scope="function")
 def user_data():
@@ -39,6 +39,11 @@ def valid_client_data() -> dict[str, Any]:
   "email": "user@example.com",
   "phone_number": "170418643"
 }
+
+@pytest.fixture(autouse=True)
+def clear_attempt_logger():
+    yield
+    attempt_logger.clear()
 
 @pytest.fixture(scope="session")
 async def engine():

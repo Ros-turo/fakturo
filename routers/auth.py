@@ -215,7 +215,7 @@ def get_security_user_id(user: CurrentActiveUser):
 
 SecurityID = Annotated[int, Depends(get_security_user_id)]
 
-@router.post('/register')
+@router.post('/register', status_code=201)
 async def register(user_data: UserCreate, repo: UserDepends):
 
     user_exist = await repo.get_by_email(user_data.email)
@@ -227,7 +227,10 @@ async def register(user_data: UserCreate, repo: UserDepends):
     new_user = User(**user_data.model_dump(exclude={"password"}), hashed_password=hashed_password)
     user = await repo.create_user(new_user)
 
-    return {'msg': 'User registered', 'status': 'ok', 'UID': user.id}
+    return JSONResponse(
+        status_code=201,
+        content={'msg': 'User registered', 'status': 'ok', 'UID': user.id}
+    )
 
 @router.post('/login', dependencies=[Depends(check_timeout)])
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
