@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import event
@@ -8,6 +10,35 @@ from main import app
 from database import Base, get_db
 from routers.auth import get_current_user
 
+@pytest.fixture(scope="function")
+def user_data():
+    return {
+        "password": "stringst",
+        "email": "user@example.com",
+        "name": "string",
+        "surname": "string",
+        "ico": "14044984",
+        "dic": "SK22500300",
+        "city": "string",
+        "psc": "string",
+        "street": "string",
+        "house_number": "string"
+    }
+
+@pytest.fixture(scope="function")
+def valid_client_data() -> dict[str, Any]:
+    return {
+  "name": "string",
+  "ico": "91291715",
+  "dic": "SK7082783024",
+  "city": "string",
+  "psc": "string",
+  "street": "string",
+  "house_number": "string",
+  "vat": True,
+  "email": "user@example.com",
+  "phone_number": "170418643"
+}
 
 @pytest.fixture(scope="session")
 async def engine():
@@ -39,7 +70,7 @@ async def db(engine):
         await session.close()
         await conn.rollback()
 @pytest.fixture(scope="function")
-async def _base_client(db):
+async def _base_user(db):
     def get_override_db():
         yield db
     app.user_middleware = []
@@ -53,29 +84,24 @@ async def _base_client(db):
     app.dependency_overrides.clear()
 
 @pytest.fixture(scope="function")
-async def unauthorized_client(_base_client):
-    return _base_client
+async def unauthorized_user(_base_user):
+    return _base_user
 
 @pytest.fixture(scope="function")
-async def client(_base_client):
+async def user(_base_user, user_data):
 
-    user_data = {
-        "password": "stringst",
-        "email": "user@example.com",
-        "name": "string",
-        "surname": "string",
-        "ico": "14044984",
-        "dic": "SK22500300",
-        "city": "string",
-        "psc": "string",
-        "street": "string",
-        "house_number": "string"
-    }
-    response = await _base_client.post("/auth/register", json=user_data)
-    print(response.status_code)
-    print(response.text)
+
+    response = await _base_user.post("/auth/register", json=user_data)
     uid = response.json()['UID']
     app.dependency_overrides[get_current_user] = lambda: {"uid": uid}
-    yield _base_client
+    yield _base_user
     app.dependency_overrides.clear()
 
+@pytest.fixture(scope="function")
+async def user_with_one_client(user, valid_client_data):
+
+    response = await user.post("/clients/", json=valid_client_data)
+    client_data = response.json()
+    client_id = client_data["id"]
+
+    yield user, client_id
