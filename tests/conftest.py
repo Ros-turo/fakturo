@@ -8,7 +8,22 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from settings import settings
 from main import app
 from database import Base, get_db
-from routers.auth import get_current_user
+from routers.auth import get_current_user, attempt_logger
+
+@pytest.fixture(scope="function")
+def user_data():
+    return {
+        "password": "stringst",
+        "email": "user@example.com",
+        "name": "string",
+        "surname": "string",
+        "ico": "14044984",
+        "dic": "SK22500300",
+        "city": "string",
+        "psc": "string",
+        "street": "string",
+        "house_number": "string"
+    }
 
 @pytest.fixture(scope="function")
 def user_data():
@@ -28,17 +43,22 @@ def user_data():
 @pytest.fixture(scope="function")
 def valid_client_data() -> dict[str, Any]:
     return {
-  "name": "string",
-  "ico": "91291715",
-  "dic": "SK7082783024",
-  "city": "string",
-  "psc": "string",
-  "street": "string",
-  "house_number": "string",
-  "vat": True,
-  "email": "user@example.com",
-  "phone_number": "170418643"
-}
+      "name": "string",
+      "ico": "91291715",
+      "dic": "SK7082783024",
+      "city": "string",
+      "psc": "string",
+      "street": "string",
+      "house_number": "string",
+      "vat": True,
+      "email": "user@example.com",
+      "phone_number": "170418643"
+    }
+
+@pytest.fixture(autouse=True)
+def clear_attempt_logger():
+    yield
+    attempt_logger.clear()
 
 @pytest.fixture(scope="session")
 async def engine():
