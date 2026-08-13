@@ -26,21 +26,6 @@ def user_data():
     }
 
 @pytest.fixture(scope="function")
-def user_data():
-    return {
-        "password": "stringst",
-        "email": "user@example.com",
-        "name": "string",
-        "surname": "string",
-        "ico": "14044984",
-        "dic": "SK22500300",
-        "city": "string",
-        "psc": "string",
-        "street": "string",
-        "house_number": "string"
-    }
-
-@pytest.fixture(scope="function")
 def valid_client_data() -> dict[str, Any]:
     return {
       "name": "string",
