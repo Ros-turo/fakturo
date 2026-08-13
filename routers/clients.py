@@ -1,6 +1,8 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, HTTPException
+import httpx
+from pydantic import model_serializer
 
 from repositories.client_repository import ClientRepo
 from schemas import ClientCreate, ClientResponse, ClientAres
@@ -8,7 +10,7 @@ from routers.auth import CurrentUser
 from database import DBSession
 from db_models import  Client
 from exceptions import ClientNotFoundError
-import httpx
+from cache import set_cache, get_cache
 
 
 router = APIRouter(prefix='/clients', tags=['clients'])
@@ -54,10 +56,21 @@ async def get_clients(user: CurrentUser, repo: ClientDepends):
 @router.get('/{client_id}', response_model=ClientResponse)
 async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
     uid = user['uid']
+    key = f"user_{uid}:clients:{client_id}"
+
+    cache_try = await get_cache(key=key)
+    if not (cache_try is None):
+        client_data = ClientResponse.model_validate_json(cache_try)
+        return client_data
+
     client: Client | None = await repo.get_one_client(uid=uid, client_id=client_id)
     if not client:
         raise ClientNotFoundError(client_id=client_id)
-    return client
+
+    value = ClientResponse.model_validate(client).model_dump_json()
+    await set_cache(key=key, value=value, ttl=600)
+
+    return ClientResponse.model_validate(client)
 
 @router.post('/', response_model=ClientResponse)
 async def create_client(client: ClientCreate, user: CurrentUser,
