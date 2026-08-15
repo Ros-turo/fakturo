@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     algorithm: str = 'HS256'
     access_expire_minutes: int = 30
     refresh_expire_days: int = 15
+    redis_host: str
+    redis_port: int = 6379
 
 
 settings =Settings() # type:ignore [call-arg]

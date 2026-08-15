@@ -23,7 +23,16 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-          
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -39,4 +48,5 @@ jobs:
           test_db_url: postgresql+asyncpg://testuser:testpass@localhost:5432/fakturo_test
           DB_URL: ${{ secrets.DB_URL }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          redis_host: localhost
         run: pytest

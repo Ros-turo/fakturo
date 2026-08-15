@@ -1,7 +1,8 @@
 import redis.asyncio as redis
 from typing import cast
+from settings import settings
 
-r = redis.Redis(host='redis', port=6379, decode_responses=True)
+r = redis.Redis(host=settings.redis_host, port=settings.redis_port, decode_responses=True)
 
 async def get_cache(key: str) -> str | None:
     response = await r.get(key)
