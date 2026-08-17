@@ -1,6 +1,6 @@
 import secrets
-from typing import Annotated
-from urllib import request
+from typing import Annotated, Any
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -17,8 +17,10 @@ from settings import settings
 from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
 from logging_config import logger
+from cache import is_token_in_blacklist, add_token_to_blacklist
 
 router = APIRouter(prefix='/auth', tags=['auth'])
+
 
 def get_user_repo(db:DBSession)->UserRepo:
 
@@ -35,6 +37,9 @@ AuthDepends = Annotated[AuthRepo, Depends(get_auth_repo)]
 
 def invalid_credentials_exception() -> HTTPException:
     return HTTPException(status_code=401, detail="Invalid credentials")
+
+def unauthorized_exception() -> HTTPException:
+    return HTTPException(status_code=401, detail="Unauthorized")
 
 def blocked_user_exception():
     return HTTPException(status_code=423, detail="Account is blocked")
@@ -109,8 +114,10 @@ def create_access_token(email:str, uid:int) -> str:
     """
     now = datetime.now(timezone.utc)
     expire_time = now + timedelta(minutes=30)
+    jti = str(uuid4())
     payload = {
         'sub': email,
+        'jti': jti,
         'uid': uid,
         'iat': now,
         'exp': expire_time,
@@ -118,6 +125,25 @@ def create_access_token(email:str, uid:int) -> str:
     }
 
     return jwt.encode(payload, settings.secret_key, settings.algorithm)
+
+def extract_access_token(request: Request) -> str | None:
+
+    value = request.headers.get("Authorization")
+
+    if value is None:
+        return None
+
+    token = value.removeprefix("Bearer ")
+    return token
+
+AccessTokenExtractor = Annotated[str|None, Depends(extract_access_token)]
+
+async def blacklist_token(token: AccessTokenExtractor) -> None:
+
+    if token:
+        await add_token_to_blacklist(token)
+
+AddTokenBlacklist = Annotated[None, Depends(blacklist_token)]
 
 async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
     now = datetime.now(timezone.utc)
@@ -181,10 +207,14 @@ async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthR
     )
     return  {'access_token': access_token, 'token_type': 'bearer'}
 
-def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],) -> dict:
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],) -> dict[str, Any]:
 
     payload = decode_jwt_token(token)
-    return payload
+    jti = payload['jti']
+    if await is_token_in_blacklist(jti):
+        raise unauthorized_exception()
+    else:
+        return payload
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
@@ -269,7 +299,7 @@ async def token_refresh(request: Request, response: Response, auth_repo: AuthDep
 
     return content
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(blacklist_token)])
 async def logout(request: Request, auth_repo: AuthDepends,
                  response: Response):
 
