@@ -7,3 +7,7 @@ celery_app = Celery(
     broker = f'redis://{settings.redis_host}:{settings.redis_port}/1',
     backend= f'redis://{settings.redis_host}:{settings.redis_port}/2'
 )
+
+@celery_app.task
+def add_numbers(x, y):
+    return x + y
