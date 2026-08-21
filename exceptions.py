@@ -56,3 +56,13 @@ class InvalidStatusChangeError(BusinessRuleError):
     def __init__(self, from_status:Status, to_status:Status):
         super().__init__(rule_name="Invalid changing status",
                          detail= f"You cannot change status from {from_status.value} to {to_status.value}")
+
+class CeleryError(Exception):
+    pass
+
+class InvoiceNotFound(CeleryError):
+
+    def __init__(self, invoice_id: int, uid:int):
+        self.invoice_id = invoice_id
+        self.uid = uid
+        super().__init__(f"Failed to find invoice: {invoice_id} for user: {uid}")

@@ -70,12 +70,12 @@ class Invoice(Base):
     tags:Mapped[List["InvoiceTag"]] = relationship(back_populates="invoice")
 
     @hybrid_property
-    def is_overdue(self) -> bool:
+    def is_overdue(self) -> bool:  # pyright: ignore [reportRedeclaration]
         return self.status != Status.paid and self.due_date < date.today()
 
     @is_overdue.expression # type: ignore[no-redef]
     def is_overdue(cls):
-        return and_(cls.status != Status.paid, cls.due_date < date.today())
+        return and_(cls.status != Status.paid, cls.due_date < date.today())  # pyright: ignore [reportArgumentType]
 
 @event.listens_for(Invoice.status, "set")
 def on_status_change(target, value, oldvalue, _):

@@ -2,6 +2,7 @@ import asyncio
 import time
 from typing import Annotated
 
+from celery import chain
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
 from starlette.background import BackgroundTasks
 from starlette.responses import StreamingResponse, JSONResponse
@@ -15,7 +16,7 @@ from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
 from pdf import invoice_pdf
 from exceptions import InvoiceNotFoundError, InvoiceDeleteError, InvoiceConflict, InvalidStatusChangeError
-
+from celery_app import celery_app, generate_pdf, send_email_task
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -166,16 +167,21 @@ async def get_invoices_above_average(user: CurrentActiveUser, invoice_repo: Invo
 async def get_one_invoice(invoice: GetterInvoice):
     return invoice
 
-@router.get("/{invoice_id}/pdf")
-async def invoice_to_pdf(invoice: GetterInvoice):
+@router.post("/{invoice_id}/pdf")
+async def invoice_to_pdf(uid: UserID, invoice_id: Annotated[int, Path()]):
     """ Convert invoice to pdf"""
 
-    pdf = invoice_pdf(invoice)
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=faktura-{invoice.invoice_number}.pdf"}
+    pdf_email_workflow = chain(
+        generate_pdf.s(invoice_id, uid),
+        send_email_task.s(text="Your invoice in pdf is coming")
     )
+
+    pdf_email_workflow.apply_async()
+
+    return JSONResponse(status_code=202,
+                        content={
+                            "Message": "We work on your task, it will be take a few minutes to complete your task",
+                        })
 
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
 async def change_status(invoice: GetterInvoice, user: CurrentActiveUser,
