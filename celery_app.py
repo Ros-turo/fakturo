@@ -1,17 +1,14 @@
 import asyncio
 
-from celery import Celery, chain
-from random import random
+from celery import Celery
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_session
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import joinedload, selectinload
 
 from db_models import Invoice
 from settings import settings
-from database import SessionLocal
 from pdf import invoice_pdf
-from exceptions import CeleryError, InvoiceNotFound
-from logging_config import logger
+from exceptions import InvoiceNotFound
 
 celery_app = Celery(
     'celery_fakturo',
