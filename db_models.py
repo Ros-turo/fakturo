@@ -34,6 +34,8 @@ class User(Base):
 class Client(Base):
     __tablename__ = "clients"
 
+    version:Mapped[int] = mapped_column(default=1)
+
     name:Mapped[str] = mapped_column()
     email:Mapped[str | None] = mapped_column()
     ico:Mapped[str] = mapped_column()
@@ -50,6 +52,10 @@ class Client(Base):
 
     owner:Mapped["User"] = relationship(back_populates="clients")
     invoices:Mapped[List["Invoice"]] = relationship(back_populates="client")
+
+    __mapper_args__ = {
+        "version_id_col": version
+    }
 
 class Invoice(Base):
     __tablename__ = "invoices"
