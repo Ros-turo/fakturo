@@ -5,7 +5,7 @@ from typing import List
 from sqlalchemy import (Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date,
                         Enum as SEnum, UniqueConstraint, event, select, and_)
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Mapped, mapped_column, Session, with_loader_criteria
 from sqlalchemy.sql import func
 from database import Base
 from schemas import Status, Action
@@ -59,6 +59,7 @@ class Invoice(Base):
     due_date:Mapped[date] = mapped_column()
     status:Mapped[Status] = mapped_column(SEnum(Status), default=Status.draft)
     created_at:Mapped[datetime] = mapped_column(server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column()
     total_amount:Mapped[Decimal] = mapped_column()
 
     owner_id:Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -76,6 +77,16 @@ class Invoice(Base):
     @is_overdue.expression # type: ignore[no-redef]
     def is_overdue(cls):
         return and_(cls.status != Status.paid, cls.due_date < date.today())  # pyright: ignore [reportArgumentType]
+
+@event.listens_for(Session, "do_orm_execute")
+def soft_delete_filter(execute_state):
+    if execute_state.execution_options.get("include_delete", False):
+        return
+
+    if not execute_state.is_column_load and not execute_state.is_relationship_load:
+        execute_state.statement = execute_state.statement.options(
+            with_loader_criteria(Invoice, Invoice.deleted_at.is_(None))
+        )
 
 @event.listens_for(Invoice.status, "set")
 def on_status_change(target, value, oldvalue, _):
