@@ -1,9 +1,5 @@
 import time
 
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
-
 from logging_config import logger
 
 
@@ -78,55 +74,6 @@ class CORSMiddleware:
 
         await self.app(scope, receive, send_wrapper)
 
-"""
-Zadání: Napiš middleware RequestLoggingMiddleware, co:
-
-Přečte celé tělo requestu (přes receive()) předtím, než ho appka dostane
-Zaloguje velikost těla v bajtech (len(body))
-Musí tělo znovu zpřístupnit appce beze změny — pokud tělo jednou přečteš přes receive(), 
-appka by ho už neviděla (stream se dá přečíst jen jednou), takže musíš vymyslet, jak ho "vrátit zpátky"
-
-Otázka na rozjezd, než začneš: receive() může vrátit víc zpráv za sebou 
-(pokud je tělo velké, přijde po částech, s more_body: True/False flagem).
- Jak zjistíš, že jsi přečetl celé tělo (žádná další část nepřijde)?"""
-
-class RequestLoggingMiddleware:
-
-    def __init__(self,app) -> None:
-        self.app = app
-
-    async def __call__(self,scope, receive, send) -> None:
-
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-
-        body = []
-        while True:
-            message:dict = await receive()
-            body_flag = message.get("more_body")
-
-            body.append(message)
-
-            if body_flag is None or not body_flag:
-                break
-
-        index = 0
-        async def receive_wrapper():
-
-            nonlocal index
-
-            if index < len(body):
-                message = body[index]
-                index += 1
-                return message
-
-            return await receive()
-
-        logger.info(f"{sum([len(message["body"]) for message in body])}, body: {body}")
-
-        await self.app(scope, receive_wrapper, send)
 
 
 
