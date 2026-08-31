@@ -1,5 +1,7 @@
 import time
 
+from fastapi import HTTPException
+
 from logging_config import logger
 
 
@@ -75,5 +77,35 @@ class CORSMiddleware:
         await self.app(scope, receive, send_wrapper)
 
 
+class MaxBodySizeMiddleware:
+    def __init__(self,app, max_body_size:int = 1_000_000) -> None:
+        self.app = app
+        self.max_body_size = max_body_size
+
+    async def __call__(self, scope: dict, receive, send) -> None:
+
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        body_size = 0
+        headers: list[bytes] = scope["headers"]
+        for header in headers:
+            if header[0] == b'content-length':
+                body_size = int(header[1])
+
+        if body_size > self.max_body_size:
+            await send({
+                "type":"http.response.start",
+                "status":413,
+                "headers":[(b'content-type', b'application/json')]
+            })
+            await send({
+                "type":"http.response.body",
+                'body': b'{"detail": "Payload too large"}'
+            })
+            return
+
+        await self.app(scope, receive, send)
 
 
