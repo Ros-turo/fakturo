@@ -47,10 +47,13 @@ app.include_router(wbs)
 @app.exception_handler(FakturoNotFoundError)
 def not_found_exception(request: Request, exc: FakturoNotFoundError) -> JSONResponse :
 
+    if exc.resource_id is None:
+        content = {"detail": f"{exc.resource_name}: Not Found"}
+    else:
+        content = {"detail": f"{exc.resource_name} {exc.resource_id} is not found"}
     return JSONResponse(
-        status_code=404,
-        content={"detail": f"{exc.resource_name} {exc.resource_id} is not found"}
-    )
+            status_code=404,
+            content=content)
 
 @app.exception_handler(FakturoDeleteError)
 def cant_delete_exception(request: Request, exc: FakturoDeleteError) -> JSONResponse:

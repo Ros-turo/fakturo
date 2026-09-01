@@ -1,8 +1,64 @@
 from schemas import Status
 
+
+class AuthError(Exception):
+    pass
+
+
+class CredentialsError(AuthError):
+    pass
+
+class InvalidCredentialsError(CredentialsError):
+    def __init__(self):
+        super().__init__("Invalid credentials")
+
+class EmailExistError(CredentialsError):
+
+    def __init__(self):
+        super().__init__("Email already exists")
+
+class RateLimitError(AuthError):
+
+    def __init__(self):
+        super().__init__("You used too many attempts per time")
+
+class UnauthorizedError(AuthError):
+
+    def __init__(self):
+        super().__init__("User is not authorized")
+
+class UserInBlacklistError(AuthError):
+
+    def __init__(self):
+        super().__init__("User is blocked")
+
+class UserInactiveError(AuthError):
+
+    def __init__(self):
+        super().__init__("User is inactive")
+
+class TokenError(AuthError):
+    pass
+
+class InvalidTokenError(TokenError):
+
+    def __init__(self, reason):
+        self.reason = reason
+
+class ExpiredTokenError(TokenError):
+
+    def __init__(self):
+        super().__init__("Token has expired")
+
+class RevokedTokenError(TokenError):
+
+    def __init__(self):
+        super().__init__("Token is revoked")
+
+
 class FakturoNotFoundError(Exception):
 
-    def __init__(self, resource_name:str, resource_id:int):
+    def __init__(self, resource_name:str, resource_id:int | None = None):
         self.resource_name = resource_name
         self.resource_id = resource_id
 
@@ -11,10 +67,25 @@ class InvoiceNotFoundError(FakturoNotFoundError):
     def __init__(self, invoice_id: int):
         super().__init__(resource_name="Invoice", resource_id=invoice_id)
 
+class UserNotFoundError(FakturoNotFoundError):
+
+    def __init__(self, user_id: int):
+        super().__init__(resource_name="User", resource_id=user_id)
+
 class ClientNotFoundError(FakturoNotFoundError):
 
     def __init__(self, client_id):
         super().__init__(resource_name="Client", resource_id=client_id)
+
+class RefreshTokenNotFoundError(FakturoNotFoundError):
+
+    def __init__(self):
+        super().__init__(resource_name="Refresh token")
+
+class DeviceNotFoundError(FakturoNotFoundError):
+
+    def __init__(self):
+        super().__init__(resource_name="Device")
 
 
 
