@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 
-from pwdlib import PasswordHash
 from jose import jwt, JWTError
 from starlette.responses import JSONResponse
 
@@ -18,6 +17,7 @@ from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
 from logging_config import logger
 from cache import is_token_in_blacklist, add_token_to_blacklist
+from security.hashing import hash_password, verify_password
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -44,12 +44,6 @@ def unauthorized_exception() -> HTTPException:
 def blocked_user_exception():
     return HTTPException(status_code=423, detail="Account is blocked")
 
-pwd_hasher = PasswordHash.recommended()
-def hash_password(password: str) -> str:
-    return pwd_hasher.hash(password)
-
-def verify_password(password: str, hashed_pwd) -> bool:
-    return pwd_hasher.verify(password=password, hash=hashed_pwd)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
