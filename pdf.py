@@ -1,5 +1,5 @@
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from weasyprint import HTML
+from weasyprint import HTML # type: ignore [import-untyped]
 from db_models import Invoice
 
 

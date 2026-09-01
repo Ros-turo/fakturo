@@ -1,13 +1,17 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, HTTPException
+import httpx
 
 from repositories.client_repository import ClientRepo
 from schemas import ClientCreate, ClientResponse, ClientAres
 from routers.auth import CurrentUser
 from database import DBSession
 from db_models import  Client
-import httpx
+from exceptions import ClientNotFoundError
+from cache import set_cache, get_cache, delete_cache
+from logging_config import logger
 
 
 router = APIRouter(prefix='/clients', tags=['clients'])
@@ -53,23 +57,47 @@ async def get_clients(user: CurrentUser, repo: ClientDepends):
 @router.get('/{client_id}', response_model=ClientResponse)
 async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
     uid = user['uid']
+    key = f"user_{uid}:clients:{client_id}"
+
+    cache_try = await get_cache(key=key)
+    if not (cache_try is None):
+        client_data = ClientResponse.model_validate_json(json_data=cache_try)
+        return client_data
+
     client: Client | None = await repo.get_one_client(uid=uid, client_id=client_id)
     if not client:
-        raise HTTPException(status_code=404, detail="Not found")
-    return client
+        raise ClientNotFoundError(client_id=client_id)
 
-@router.post('/', response_model=ClientResponse)
+    response = ClientResponse.model_validate(client)
+    value = response.model_dump_json()
+    await set_cache(key=key, value=value, ttl=600)
+
+    return response
+
+@router.post('/', response_model=ClientResponse, status_code=201)
 async def create_client(client: ClientCreate, user: CurrentUser,
                   repo: ClientDepends):
 
     uid = user['uid']
     new_client = Client(**client.model_dump(),
                         owner_id=uid)
-    return await repo.create_client(new_client)
+
+    created_client = await repo.create_client(new_client)
+    response = ClientResponse.model_validate(created_client)
+    client_id = created_client.id
+    cache_client = response.model_dump_json()
+    key = f"user_{uid}:clients:{client_id}"
+    await set_cache(key=key, value=cache_client, ttl=600)
+
+    return response
 
 @router.delete("/{client_id}", status_code=204)
 async def delete_client(client_id: int, user:CurrentUser, repo: ClientDepends):
     uid = user["uid"]
+
     client = await repo.delete_client(uid=uid, client_id=client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Not found")
+
+    key = f"user_{uid}:clients:{client_id}"
+    await delete_cache(key=key)

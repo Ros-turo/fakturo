@@ -2,11 +2,12 @@ import asyncio
 import time
 from typing import Annotated
 
+from celery import chain
 from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
 from starlette.background import BackgroundTasks
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, JSONResponse
 
-from routers.auth import CurrentUser, CurrentActiveUser, UserID
+from routers.auth import CurrentUser, CurrentActiveUser, UserID, SecurityID
 from schemas import InvoiceCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
     InvoiceListResponse, InvoiceByStatus, BulkPDFResponse
 from db_models import Invoice
@@ -14,8 +15,8 @@ from logging_config import logger
 from repositories.invoice_repository import InvoiceRepo
 from database import DBSession, SessionLocal
 from pdf import invoice_pdf
-from exceptions import InvoiceNotFoundError
-
+from exceptions import InvoiceNotFoundError, InvoiceDeleteError, InvoiceConflict, InvalidStatusChangeError
+from celery_app import celery_app, generate_pdf, send_email_task
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -25,14 +26,27 @@ def get_invoice_repo(db: DBSession):
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
 
-async def invoice_exists_checker(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
+async def invoice_getter(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
         raise InvoiceNotFoundError(invoice_id=invoice_id)
     return invoice
 
-ExistingInvoice = Annotated[Invoice, Depends(invoice_exists_checker)]
+GetterInvoice = Annotated[Invoice, Depends(invoice_getter)]
 
+def draft_invoice_checker(invoice: GetterInvoice):
+
+    if invoice.status == Status.draft:
+        return invoice
+    raise InvoiceDeleteError("Not allowed to delete invoices that was sent already ")
+
+DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]
+
+def valid_status_change(old_status: Status, new_status: Status):
+
+    if ((old_status == Status.paid) or (old_status == Status.overdue and new_status == Status.draft) or
+            (old_status == Status.sent and new_status == Status.draft)):
+        raise InvalidStatusChangeError(from_status=old_status, to_status=new_status)
 
 # Background tasks
 
@@ -52,7 +66,7 @@ async def get_invoice_json(invoices):
                         .model_dump_json())
         yield invoice_json + " \n"
 
-@router.post("/", response_model=InvoiceResponse)
+@router.post("/create_invoice", response_model=InvoiceResponse)
 async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
                    repo:InvoiceDepends, background_task: BackgroundTasks):
 
@@ -131,8 +145,8 @@ async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=
     if invoices_id:
         logger.warning(f"User {uid} attempted to access invoices not owned: {invoices_id}")
 
-    size = sum([len(pdf) for pdf in pdf_list])
-    created_count = len(tripped_id)
+    size = sum([len(pdf) for pdf in pdf_list if not isinstance(pdf, BaseException)])
+    created_count = len(tripped_id) - len([pdf for pdf in pdf_list if isinstance(pdf, BaseException)])
     return {
         "status": "ok",
         "Denied_id": invoices_id,
@@ -140,26 +154,58 @@ async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=
         "Size": size,
     }
 
+@router.get("/average_total_amount")
+async def get_invoices_above_average(user: CurrentActiveUser, invoice_repo: InvoiceDepends):
+
+    uid = user["uid"]
+
+    invoices = await invoice_repo.get_invoices_above_avg(uid=uid)
+
+    return invoices
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-async def get_one_invoice(invoice: ExistingInvoice):
+async def get_one_invoice(invoice: GetterInvoice):
     return invoice
 
-@router.get("/{invoice_id}/pdf")
-async def invoice_to_pdf(invoice: ExistingInvoice):
+@router.post("/{invoice_id}/pdf")
+async def invoice_to_pdf(uid: UserID, invoice_id: Annotated[int, Path()]):
     """ Convert invoice to pdf"""
 
-    pdf = invoice_pdf(invoice)
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=faktura-{invoice.invoice_number}.pdf"}
+    pdf_email_workflow = chain(
+        generate_pdf.s(invoice_id, uid),
+        send_email_task.s(text="Your invoice in pdf is coming")
     )
 
+    pdf_email_workflow.apply_async()
+
+    return JSONResponse(status_code=202,
+                        content={
+                            "Message": "We work on your task, it will be take a few minutes to complete your task",
+                        })
+
 @router.patch("/{invoice_id}/status", response_model=InvoiceResponse)
-async def change_status(invoice: ExistingInvoice, user: CurrentActiveUser,
-                  new_status: Status, repo: InvoiceDepends):
+async def change_status(invoice: GetterInvoice, user: CurrentActiveUser,
+                        new_status: Status, repo: InvoiceDepends):
+    old_status = invoice.status
+    valid_status_change(old_status=old_status, new_status=new_status)
+
     await repo.change_invoice_status(invoice=invoice, new_status=new_status)
     return invoice
+
+
+@router.delete("/{invoice_id}")
+async def delete_draft_invoice(s_uid: SecurityID, invoice: DraftChecker,
+                                  invoice_repo: InvoiceDepends):
+
+    result = await invoice_repo.delete_invoice(invoice)
+
+    if result:
+        logger.warning(f"Invoice {invoice.id =} {invoice.invoice_number= } was deleted suspicious")
+        raise InvoiceConflict("Invoice was already deleted, if it's wasn't you please change a password and contact us to help")
+
+    return JSONResponse(
+        status_code=200,
+        content = {"detail": " Invoice is deleted"}
+    )
 
 

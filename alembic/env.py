@@ -3,13 +3,13 @@ import os
 from sqlalchemy import engine_from_config
 from database import Base
 import db_models
-from dotenv import load_dotenv
+from settings import settings
 from sqlalchemy import pool
 
 from alembic import context
 
 
-load_dotenv()
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -43,9 +43,13 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = settings.db_url
+
+    sync_url = url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+
+    config.set_main_option("sqlalchemy.url",sync_url)
     context.configure(
-        url=url,
+        url=sync_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -62,7 +66,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    url = os.getenv("DATABASE_URL")
+    url = settings.db_url
 
     sync_url = url.replace("postgresql+asyncpg", "postgresql+psycopg2")
 

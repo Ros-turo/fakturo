@@ -14,7 +14,7 @@ class TagRepo:
         new_tag = Tag(name=name, owner_id=owner_id)
         tag_exist = await self.db.execute(select(Tag).where(Tag.owner_id == owner_id,
                                                             Tag.name == name))
-        tag: Tag = tag_exist.scalar_one_or_none()
+        tag: Tag | None = tag_exist.scalar_one_or_none()
         if not tag:
             self.db.add(new_tag)
             await self.db.commit()
@@ -27,7 +27,7 @@ class TagRepo:
         tags_result = await self.db.execute(select(Tag).where(Tag.owner_id == owner_id))
         tags = tags_result.scalars().all()
 
-        return tags
+        return list(tags)
 
     async def add_tag_to_invoice(self, invoice_id: int, tag_id: int, uid: int) -> Invoice | None:
         tag_result = await self.db.execute(select(Tag)

@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import create_async_engine,AsyncSession
 
 from main import app
 from database import Base, get_db
-from config import test_db_url
+from settings import settings
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def engine():
-    engine = create_async_engine(test_db_url)
+    engine = create_async_engine(settings.test_db_url)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
@@ -17,7 +17,8 @@ async def engine():
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
-@pytest_asyncio.fixture
+
+@pytest_asyncio.fixture(scope="function")
 async def db(engine):
     async with engine.begin() as conn:
         async with AsyncSession(bind=conn) as session:
@@ -47,6 +48,9 @@ async def registered_user(client):
         "ico": "12345678",
         "city": "Praha",
         "psc": "11000",
+        "street": "Partyzanska",
+        "house_number": "32",
+    
     })
     return {
         "username": "test@fakturo.cz",

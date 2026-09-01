@@ -5,7 +5,7 @@ from db_models import User
 
 
 
-class UserRepository:
+class UserRepo:
 
     def __init__(self,db: AsyncSession):
         self.db = db

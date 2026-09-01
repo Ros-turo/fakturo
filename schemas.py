@@ -3,7 +3,8 @@ from datetime import date, datetime
 from enum import Enum
 
 from decimal import Decimal
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, model_validator, field_validator, computed_field
+
 
 class Status(str, Enum):
     draft = "draft"
@@ -25,9 +26,14 @@ class OrderDir(str, Enum):
     ascended = "asc"
     descended = "desc"
 
+class VatRate(int, Enum):
+    basic = 21
+    reduce = 12
+
+
 class ClientDefault(BaseModel):
     name: str
-    ico: Annotated[str, Field(pattern=r"\d{8}")]
+    ico: Annotated[str, Field(pattern=r"^\d{8}$")]
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str
     psc: str
@@ -43,7 +49,7 @@ class ClientAres(ClientDefault):
 class ClientCreate(ClientDefault):
 
     email: EmailStr | None = None
-    phone_number: Annotated[str | None, Field(pattern=r"\d{9}")] = None
+    phone_number: Annotated[str | None, Field(pattern=r"^\d{9}$")] = None
 
 class ClientResponse(ClientCreate):
 
@@ -54,7 +60,19 @@ class InvoiceItemCreate(BaseModel):
     description: str
     unit_price: Decimal
     quantity: Decimal
-    vat_rate: int
+    vat_rate: VatRate
+
+
+    @computed_field # type: ignore [prop-decorator]
+    @property
+    def subtotal(self) -> Decimal:
+        return round(self.unit_price*self.quantity, 2)
+
+    @computed_field # type: ignore [prop-decorator]
+    @property
+    def total_with_vat(self) -> Decimal:
+        return round((self.subtotal*(1+Decimal(self.vat_rate/100))), 2)
+
 
 class InvoiceItemResponse(InvoiceItemCreate):
     id: int
@@ -62,15 +80,31 @@ class InvoiceItemResponse(InvoiceItemCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
-class InvoiceCreate(BaseModel):
-
+class InvoiceBase(BaseModel):
     invoice_number: str
     issue_date: Annotated[date, Field(default_factory=date.today)]
     due_date: Annotated[date, Field()]
-    invoice_items: list[InvoiceItemCreate]
     client_id: Annotated[int, Field(ge=1)]
 
-class InvoiceResponse(InvoiceCreate):
+class InvoiceCreate(InvoiceBase):
+
+    invoice_items: list[InvoiceItemCreate]
+
+    @field_validator("due_date")
+    @classmethod
+    def due_date_not_in_past(cls, value: date) -> date:
+        if value < date.today():
+            raise ValueError("Due date cannot be in the past" )
+        return value
+
+    @model_validator(mode="after")
+    def due_date_after_issue_date(self):
+        if self.due_date < self.issue_date:
+            raise ValueError("Due date cannot be early than issue date")
+        return self
+
+
+class InvoiceResponse(InvoiceBase):
     id: int
     status: Status
     created_at: datetime
@@ -103,17 +137,16 @@ class InvoiceStats(BaseModel):
 
 class UserCreate(BaseModel):
 
-    name: Annotated[str, Field(min_length=5)]
     password: Annotated[str, Field(min_length=8)]
     email: EmailStr
     name: str
     surname: str
-    ico: Annotated[str, Field(pattern=r"\d{8}")]
+    ico: Annotated[str, Field(pattern=r"^\d{8}$")]
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str
     psc: str
-    street: str | None = None
-    house_number: str | None = None
+    street: str
+    house_number: str
 
 class BulkPDFResponse(BaseModel):
 
@@ -121,3 +154,8 @@ class BulkPDFResponse(BaseModel):
     denied_ids: set[int]
     created_count: int
     size: int
+
+class RefreshTokensResponse(BaseModel):
+
+    jti: str
+    expired_at: datetime

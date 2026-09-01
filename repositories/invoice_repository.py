@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
-from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir
+from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir, InvoiceByStatus
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class InvoiceRepo:
@@ -14,8 +14,13 @@ class InvoiceRepo:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _invoice_exist_checker(self, invoice: Invoice) -> bool:
+
+        checker = await self.db.get(Invoice, invoice.id)
+        return checker is not None
+
     async def create_invoice(self, uid:int, invoice: InvoiceCreate) -> Invoice:
-        total_amount = sum((item.unit_price*item.quantity) * Decimal(1 + (item.vat_rate / 100)) for item in invoice.invoice_items)
+        total_amount = sum(item.total_with_vat for item in invoice.invoice_items)
         invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id = uid,
                                 total_amount=total_amount)
         self.db.add(invoice_in_db)
@@ -23,7 +28,7 @@ class InvoiceRepo:
 
         await self.db.execute(insert(InvoiceItem)
                               .values([{"invoice_id": invoice_in_db.id,
-                                                     **item.model_dump()}
+                                                     **item.model_dump(exclude={"subtotal", "total_with_vat"})}
                                                     for item in invoice.invoice_items]))
         await self.db.commit()
         result = await self.db.execute(select(Invoice)
@@ -121,15 +126,17 @@ class InvoiceRepo:
         self.db.add(invoice)
         await self.db.commit()
 
-    async def get_sum_by_status(self, uid:int):
-        result = await self.db.execute(select(Invoice.status,
+    async def get_sum_by_status(self, uid:int) -> list[InvoiceByStatus]:
+        raw_result = await self.db.execute(select(Invoice.status,
                                               func.count(Invoice.id).label("count"),
                                               func.sum(Invoice.total_amount).label("total"))
                                        .where(Invoice.owner_id == uid)
                                        .group_by(Invoice.status))
-        return [row._asdict() for row in result.all()]
+        result = list(raw_result.mappings().all())
 
-    async def update_overdue_invoices(self,uid:int):
+        return [InvoiceByStatus(**data) for data in result]
+
+    async def update_overdue_invoices(self,uid:int) -> int:
         stmt = (update(Invoice)
                 .where(Invoice.owner_id == uid,
                        Invoice.due_date < date.today(),
@@ -137,7 +144,7 @@ class InvoiceRepo:
                 .values(status = Status.overdue))
         result = await self.db.execute(stmt)
         await self.db.commit()
-        return result.rowcount
+        return int(result.rowcount) # type: ignore [attr-defined]
 
     async def invoice_stats(self, uid:int):
         overdue_row = await self.update_overdue_invoices(uid=uid)
@@ -166,3 +173,21 @@ class InvoiceRepo:
             "by_status":[row._asdict() for row in sub_result.all()],
             "overdue_updated": overdue_row
         }
+
+    async def get_invoices_above_avg(self, uid):
+
+        sub_query = (select(func.avg(Invoice.total_amount)).where(Invoice.owner_id == uid)).scalar_subquery()
+
+        stmt = select(Invoice).where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
+
+        result = await self.db.execute(stmt)
+
+
+        return result.scalars().all()
+
+    async def delete_invoice(self, invoice) -> bool:
+
+        await self.db.delete(invoice)
+        await self.db.commit()
+
+        return await self._invoice_exist_checker(invoice)
