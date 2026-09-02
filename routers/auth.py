@@ -1,11 +1,8 @@
-import secrets
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from datetime import datetime, timedelta, timezone
 
-from jose import jwt
 from starlette.responses import JSONResponse
 
 from schemas import UserCreate, RefreshTokensResponse
@@ -13,11 +10,10 @@ from database import DBSession
 from db_models import User
 from security.rate_limit import check_timeout, LADepends
 from security.hashing import hash_password, verify_password
-from security.tokens import (create_access_token, decode_jwt_token,get_refresh_token_payload,
-                             check_refresh_token, blacklist_token)
-from settings import settings
+from security.tokens import decode_jwt_token, check_refresh_token
 from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
+from services.auth_service import blacklist_token, get_refresh_token_payload, create_token_tuple
 from cache import is_token_in_blacklist
 
 
@@ -49,32 +45,8 @@ def blocked_user_exception():
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
-
-
-
-async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
-    now = datetime.now(timezone.utc)
-    expire_time = now + timedelta(days=15)
-    jti = secrets.token_urlsafe(32)
-    payload = {
-        'uid': uid,
-        'jti': jti,
-        'iat': now,
-        'exp': expire_time,
-        'type': 'refresh'
-    }
-
-    token = jwt.encode(payload, settings.secret_key, settings.algorithm)
-
-    await auth_repo.post_refresh_token(uid=uid, email=email,
-                                      jti=jti, expired_at=expire_time)
-
-    return token
-
-async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthRepo) -> dict:
-
-    access_token = create_access_token(email=email, uid=uid)
-    refresh_token = await create_refresh_token(email=email, uid=uid, auth_repo= auth_repo)
+async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthDepends):
+    access_token, refresh_token = await create_token_tuple(email=email, uid=uid, auth_repo=auth_repo)
 
     response.set_cookie(
         key="refresh_token",
@@ -84,6 +56,7 @@ async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthR
         max_age=14*24*60*60
     )
     return  {'access_token': access_token, 'token_type': 'bearer'}
+
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],) -> dict[str, Any]:
 
@@ -154,7 +127,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     uid = current_user.id
     email = current_user.email
 
-    content = await token_sender(email=email, uid=uid, response=response, auth_repo= auth_repo)
+    content = await token_sender(email=email, uid=uid, response=response, auth_repo=auth_repo)
 
     return content
 

@@ -1,11 +1,24 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from typing import Annotated
+from typing import Annotated, Any
 from jose import jwt, JWTError
 from fastapi import Request, Depends, HTTPException
 
 from settings import settings
-from cache import add_token_to_blacklist
+
+
+def encode_jwt_token(payload: dict[str, Any]) -> str:
+    return jwt.encode(payload, settings.secret_key, settings.algorithm)
+
+
+def decode_jwt_token(token:str) -> dict[str, Any]:
+
+    try:
+        payload = jwt.decode(token, settings.secret_key, settings.algorithm)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    return payload
 
 
 def create_access_token(email:str, uid:int) -> str:
@@ -25,7 +38,7 @@ def create_access_token(email:str, uid:int) -> str:
         'type': 'access'
     }
 
-    return jwt.encode(payload, settings.secret_key, settings.algorithm)
+    return encode_jwt_token(payload)
 
 
 def extract_access_token(request: Request) -> str | None:
@@ -40,13 +53,6 @@ def extract_access_token(request: Request) -> str | None:
 
 AccessTokenExtractor = Annotated[str|None, Depends(extract_access_token)]
 
-async def blacklist_token(token: AccessTokenExtractor) -> None:
-
-    if token:
-        await add_token_to_blacklist(token)
-
-AddTokenBlacklist = Annotated[None, Depends(blacklist_token)]
-
 
 def check_refresh_token(expired_at: datetime, revoked: bool) -> bool:
 
@@ -55,22 +61,3 @@ def check_refresh_token(expired_at: datetime, revoked: bool) -> bool:
         return False
 
     return True
-def get_refresh_token_payload(request:Request) -> dict:
-
-    token = request.cookies.get("refresh_token", None)
-    if token is None:
-        raise HTTPException(status_code=401, detail="Refresh token not found")
-
-
-    payload = decode_jwt_token(token)
-
-    return payload
-
-def decode_jwt_token(token:str) -> dict:
-
-    try:
-        payload = jwt.decode(token, settings.secret_key, settings.algorithm)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    return payload
