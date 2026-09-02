@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from settings import settings
 from main import app
 from database import Base, get_db
-from routers.auth import get_current_user, attempt_logger
+from routers.auth import get_current_user
+from security.rate_limit import attempt_logger
 
 @pytest.fixture(scope="function")
 def user_data():

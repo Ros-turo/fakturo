@@ -2,7 +2,7 @@ import secrets
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie, Path
+from fastapi import APIRouter, HTTPException, Depends, Request, Response, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 
@@ -12,13 +12,12 @@ from starlette.responses import JSONResponse
 from schemas import UserCreate, RefreshTokensResponse
 from database import DBSession
 from db_models import User
+from security.rate_limit import check_timeout, LADepends
 from settings import settings
 from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
-from logging_config import logger
 from cache import is_token_in_blacklist, add_token_to_blacklist
 from security.hashing import hash_password, verify_password
-from dependencies import IPDepends
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -47,49 +46,6 @@ def blocked_user_exception():
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
-
-class LoginAttempt:
-
-    def __init__(self) -> None:
-
-        self.attempt_count: int = 0
-        self.timeout_to: datetime = datetime.now(timezone.utc)
-
-    def check_timeout(self) -> bool:
-        now = datetime.now(timezone.utc)
-
-        return self.timeout_to < now
-
-    def logging_attempt(self) -> None:
-
-        self.attempt_count += 1
-
-        if self.attempt_count > 2:
-            self.timeout_to = datetime.now(timezone.utc) + timedelta(seconds=2 ** self.attempt_count)
-
-        return None
-
-    def clear_attempt(self) -> None:
-        self.attempt_count = 0
-        self.timeout_to = datetime.now(timezone.utc)
-
-attempt_logger: dict[str, LoginAttempt] = {}
-
-def get_la_inst(ip: IPDepends) -> LoginAttempt:
-
-    if ip not in attempt_logger:
-        new_ip = LoginAttempt()
-        attempt_logger[ip] = new_ip
-
-    return attempt_logger[ip]
-
-LADepends = Annotated[LoginAttempt, Depends(get_la_inst)]
-
-def check_timeout(inst: LADepends):
-    logger.debug(f"Checking timeout for {inst}")
-    if not inst.check_timeout():
-        logger.debug(f"Blocked {inst}")
-        raise blocked_user_exception()
 
 
 def create_access_token(email:str, uid:int) -> str:
