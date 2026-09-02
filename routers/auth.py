@@ -1,23 +1,25 @@
 import secrets
 from typing import Annotated, Any
-from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt, JWTError
+from jose import jwt
 from starlette.responses import JSONResponse
 
 from schemas import UserCreate, RefreshTokensResponse
 from database import DBSession
 from db_models import User
 from security.rate_limit import check_timeout, LADepends
+from security.hashing import hash_password, verify_password
+from security.tokens import (create_access_token, decode_jwt_token,get_refresh_token_payload,
+                             check_refresh_token, blacklist_token)
 from settings import settings
 from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
-from cache import is_token_in_blacklist, add_token_to_blacklist
-from security.hashing import hash_password, verify_password
+from cache import is_token_in_blacklist
+
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -48,43 +50,7 @@ def blocked_user_exception():
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
 
-def create_access_token(email:str, uid:int) -> str:
-    """
-    ::param user data: email, password
-    ::return user's token
-    """
-    now = datetime.now(timezone.utc)
-    expire_time = now + timedelta(minutes=30)
-    jti = str(uuid4())
-    payload = {
-        'sub': email,
-        'jti': jti,
-        'uid': uid,
-        'iat': now,
-        'exp': expire_time,
-        'type': 'access'
-    }
 
-    return jwt.encode(payload, settings.secret_key, settings.algorithm)
-
-def extract_access_token(request: Request) -> str | None:
-
-    value = request.headers.get("Authorization")
-
-    if value is None:
-        return None
-
-    token = value.removeprefix("Bearer ")
-    return token
-
-AccessTokenExtractor = Annotated[str|None, Depends(extract_access_token)]
-
-async def blacklist_token(token: AccessTokenExtractor) -> None:
-
-    if token:
-        await add_token_to_blacklist(token)
-
-AddTokenBlacklist = Annotated[None, Depends(blacklist_token)]
 
 async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
     now = datetime.now(timezone.utc)
@@ -104,35 +70,6 @@ async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
                                       jti=jti, expired_at=expire_time)
 
     return token
-
-
-def check_refresh_token(expired_at: datetime, revoked: bool) -> bool:
-
-    now = datetime.now(timezone.utc)
-    if expired_at < now or revoked:
-        return False
-
-    return True
-
-def get_refresh_token_payload(request:Request) -> dict:
-
-    token = request.cookies.get("refresh_token", None)
-    if token is None:
-        raise HTTPException(status_code=401, detail="Refresh token not found")
-
-
-    payload = decode_jwt_token(token)
-
-    return payload
-
-def decode_jwt_token(token:str) -> dict:
-
-    try:
-        payload = jwt.decode(token, settings.secret_key, settings.algorithm)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    return payload
 
 async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthRepo) -> dict:
 
