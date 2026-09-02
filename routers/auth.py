@@ -10,14 +10,15 @@ from jose import jwt, JWTError
 from starlette.responses import JSONResponse
 
 from schemas import UserCreate, RefreshTokensResponse
-from database import DBSession, SessionLocal
-from db_models import User, RefreshToken
+from database import DBSession
+from db_models import User
 from settings import settings
 from repositories.user_repository import UserRepo
 from repositories.auth_repository import AuthRepo
 from logging_config import logger
 from cache import is_token_in_blacklist, add_token_to_blacklist
 from security.hashing import hash_password, verify_password
+from dependencies import IPDepends
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -73,16 +74,6 @@ class LoginAttempt:
         self.timeout_to = datetime.now(timezone.utc)
 
 attempt_logger: dict[str, LoginAttempt] = {}
-
-def get_ip_address(request:Request) -> str:
-    user = request.client
-    if user:
-        return user.host
-    else:
-        return "Unknown"
-
-
-IPDepends = Annotated[str, Depends(get_ip_address)]
 
 def get_la_inst(ip: IPDepends) -> LoginAttempt:
 
