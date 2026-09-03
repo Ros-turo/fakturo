@@ -4,6 +4,7 @@ from typing import Annotated, Any
 from jose import jwt, JWTError
 from fastapi import Request, Depends, HTTPException
 
+from exceptions import InvalidTokenError, ExpiredTokenError, RevokedTokenError
 from settings import settings
 
 
@@ -16,7 +17,7 @@ def decode_jwt_token(token:str) -> dict[str, Any]:
     try:
         payload = jwt.decode(token, settings.secret_key, settings.algorithm)
     except JWTError:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        raise InvalidTokenError()
 
     return payload
 
@@ -57,7 +58,9 @@ AccessTokenExtractor = Annotated[str|None, Depends(extract_access_token)]
 def check_refresh_token(expired_at: datetime, revoked: bool) -> bool:
 
     now = datetime.now(timezone.utc)
-    if expired_at < now or revoked:
-        return False
+    if expired_at < now:
+        raise ExpiredTokenError()
+    if revoked:
+        raise RevokedTokenError()
 
     return True

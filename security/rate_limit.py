@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException
 
 from dependencies import IPDepends
+from exceptions import RateLimitError
 from logging_config import logger
 
 class LoginAttempt:
@@ -47,4 +48,4 @@ def check_timeout(inst: LADepends):
     logger.debug(f"Checking timeout for {inst}")
     if not inst.check_timeout():
         logger.debug(f"Blocked {inst}")
-        raise HTTPException(status_code=423, detail="Account is blocked")
+        raise RateLimitError()

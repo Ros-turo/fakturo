@@ -1,10 +1,11 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Depends, Request, Response, Path
+from fastapi import APIRouter, Depends, Request, Response, Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from starlette.responses import JSONResponse
 
+from exceptions import DeviceNotFoundError, EmailExistError, InvalidCredentialsError, RefreshTokenNotFoundError, SessionInBlacklistError, UserInactiveError
 from schemas import UserCreate, RefreshTokensResponse
 from database import DBSession
 from db_models import User
@@ -33,16 +34,6 @@ def get_auth_repo(db:DBSession) -> AuthRepo:
 
 AuthDepends = Annotated[AuthRepo, Depends(get_auth_repo)]
 
-def invalid_credentials_exception() -> HTTPException:
-    return HTTPException(status_code=401, detail="Invalid credentials")
-
-def unauthorized_exception() -> HTTPException:
-    return HTTPException(status_code=401, detail="Unauthorized")
-
-def blocked_user_exception():
-    return HTTPException(status_code=423, detail="Account is blocked")
-
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
 async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthDepends):
@@ -63,7 +54,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],) -> di
     payload = decode_jwt_token(token)
     jti = payload['jti']
     if await is_token_in_blacklist(jti):
-        raise unauthorized_exception()
+        raise SessionInBlacklistError()
     else:
         return payload
 
@@ -75,9 +66,9 @@ async def get_current_user_active(user: CurrentUser, repo: UserDepends):
     uid = user["uid"]
     user_data = await repo.get_by_uid(uid=uid)
     if user_data is None:
-        raise invalid_credentials_exception()
+        raise InvalidCredentialsError()
     if not user_data.is_active:
-        raise blocked_user_exception()
+        raise UserInactiveError()
     return user
 
 CurrentActiveUser = Annotated[dict, Depends(get_current_user_active)]
@@ -101,7 +92,7 @@ async def register(user_data: UserCreate, repo: UserDepends):
 
     user_exist = await repo.get_by_email(user_data.email)
     if user_exist:
-        raise HTTPException(status_code=400, detail="Account with this email already exist")
+        raise EmailExistError()
 
     hashed_password = hash_password(user_data.password)
 
@@ -121,7 +112,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     current_user = await user_repo.get_by_email(form_data.username)
     if not current_user or not verify_password(form_data.password, current_user.hashed_password):
         inst.logging_attempt()
-        raise invalid_credentials_exception()
+        raise InvalidCredentialsError()
 
     inst.clear_attempt()
     uid = current_user.id
@@ -139,9 +130,10 @@ async def token_refresh(request: Request, response: Response, auth_repo: AuthDep
     jti = payload['jti']
 
     token_data = await auth_repo.get_refresh_token(jti=jti)
-    if token_data is None or not check_refresh_token(token_data.expired_at,
-                                                     token_data.revoked):
-        raise HTTPException(status_code=401, detail="Refresh token is not found")
+    if token_data is None:
+        raise RefreshTokenNotFoundError()
+
+    check_refresh_token(token_data.expired_at,token_data.revoked)
 
     await auth_repo.revoke_token(token_data)
 
@@ -157,11 +149,9 @@ async def logout(request: Request, auth_repo: AuthDepends,
     try:
         payload = get_refresh_token_payload(request=request)
 
-    except HTTPException as e:
-        if e.status_code == 401:
-            payload = None
-        else:
-            raise
+    except RefreshTokenNotFoundError:
+        payload = None
+
 
     if payload:
         jti = payload['jti']
@@ -205,4 +195,4 @@ async def logout_by_jti(jti: Annotated[str, Path()], uid: SecurityID, auth_repo:
                                 "message": "Device was success logout"
                             })
 
-    raise HTTPException(status_code=403, detail="Not found device")
+    raise DeviceNotFoundError()

@@ -1,8 +1,5 @@
-import asyncio
-
 from starlette.requests import Request
-from starlette.responses import JSONResponse, HTMLResponse
-
+from fastapi.responses import JSONResponse
 from logging_config import logger
 from contextlib import asynccontextmanager
 
@@ -13,7 +10,9 @@ from database import engine
 from middleware import TimingLoggingMiddleware, CORSMiddleware
 from routers import clients, auth, invoices
 from sockets import wbs
-from exceptions import FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
+from exceptions import AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
+from exception_handlers import (business_rule_handler, conflict_handler, invalid_credentials_handler,
+                                not_found_handler, cant_delete_handler)
 
 
 
@@ -44,43 +43,11 @@ app.include_router(wbs)
 
 
 # Exceptions
-@app.exception_handler(FakturoNotFoundError)
-def not_found_exception(request: Request, exc: FakturoNotFoundError) -> JSONResponse :
-
-    if exc.resource_id is None:
-        content = {"detail": f"{exc.resource_name}: Not Found"}
-    else:
-        content = {"detail": f"{exc.resource_name} {exc.resource_id} is not found"}
-    return JSONResponse(
-            status_code=404,
-            content=content)
-
-@app.exception_handler(FakturoDeleteError)
-def cant_delete_exception(request: Request, exc: FakturoDeleteError) -> JSONResponse:
-
-    return JSONResponse(
-        status_code= 405,
-        content={"detail": f"{exc.resource_name}: {exc.resource_reason}"}
-    )
-
-@app.exception_handler(FakturoConflictError)
-def conflict_error(request:Request, exc: FakturoConflictError):
-
-    return JSONResponse(
-        status_code=409,
-        content={"detail": f"{exc.resource_name}: {exc.exc_detail}"}
-    )
-
-@app.exception_handler(BusinessRuleError)
-def business_rule_error(request: Request, exc: BusinessRuleError):
-
-    return JSONResponse(
-        status_code=422,
-        content={
-            "rule_name": exc.rule,
-            "detail": exc.detail
-        }
-    )
+app.add_exception_handler(FakturoNotFoundError, not_found_handler)  # pyright: ignore [reportArgumentType]
+app.add_exception_handler(AuthError, invalid_credentials_handler)  # pyright: ignore [reportArgumentType]
+app.add_exception_handler(FakturoDeleteError, cant_delete_handler)  # pyright: ignore [reportArgumentType]
+app.add_exception_handler(FakturoConflictError, conflict_handler)  # pyright: ignore [reportArgumentType]
+app.add_exception_handler(BusinessRuleError, business_rule_handler)  # pyright: ignore [reportArgumentType]
 
 @app.get('/')
 def info():

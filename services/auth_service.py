@@ -4,6 +4,7 @@ from secrets import token_urlsafe
 from fastapi import Depends, HTTPException, Request
 
 from cache import add_token_to_blacklist
+from exceptions import RefreshTokenNotFoundError
 from repositories.auth_repository import AuthRepo
 from security.tokens import AccessTokenExtractor, decode_jwt_token, encode_jwt_token, create_access_token
 
@@ -45,7 +46,7 @@ def get_refresh_token_payload(request:Request) -> dict:
 
     token = request.cookies.get("refresh_token", None)
     if token is None:
-        raise HTTPException(status_code=401, detail="Refresh token not found")
+        raise RefreshTokenNotFoundError()
 
 
     payload = decode_jwt_token(token)

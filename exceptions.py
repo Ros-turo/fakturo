@@ -2,58 +2,60 @@ from schemas import Status
 
 
 class AuthError(Exception):
-    pass
 
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.detail = detail
 
 class CredentialsError(AuthError):
     pass
 
 class InvalidCredentialsError(CredentialsError):
     def __init__(self):
-        super().__init__("Invalid credentials")
+        super().__init__(status_code=401, detail="Invalid credentials")
 
 class EmailExistError(CredentialsError):
 
     def __init__(self):
-        super().__init__("Email already exists")
+        super().__init__(status_code=400, detail="Account with this email already exist")
 
 class RateLimitError(AuthError):
 
     def __init__(self):
-        super().__init__("You used too many attempts per time")
+        super().__init__(status_code=429, detail="Too many attempts, try later")
 
 class UnauthorizedError(AuthError):
 
     def __init__(self):
-        super().__init__("User is not authorized")
+        super().__init__(status_code=401, detail="Unauthorized")
 
-class UserInBlacklistError(AuthError):
+class SessionInBlacklistError(AuthError):
 
     def __init__(self):
-        super().__init__("User is blocked")
+        super().__init__(status_code=423, detail="The session has been blocked")
 
 class UserInactiveError(AuthError):
 
     def __init__(self):
-        super().__init__("User is inactive")
+        super().__init__(status_code=423, detail="The account has been blocked")
 
 class TokenError(AuthError):
     pass
 
 class InvalidTokenError(TokenError):
 
-    def __init__(self, reason):
-        self.reason = reason
+    def __init__(self):
+        super().__init__(status_code=401, detail="Unauthorized")
 
 class ExpiredTokenError(TokenError):
 
     def __init__(self):
-        super().__init__("Token has expired")
+        super().__init__(status_code=401, detail="Token has expired")
 
 class RevokedTokenError(TokenError):
 
     def __init__(self):
-        super().__init__("Token is revoked")
+        super().__init__(status_code=423, detail="Token is revoked")
 
 
 class FakturoNotFoundError(Exception):
