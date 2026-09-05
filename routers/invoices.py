@@ -8,7 +8,7 @@ from starlette.background import BackgroundTasks
 from starlette.responses import StreamingResponse, JSONResponse
 
 from routers.auth import CurrentUser, CurrentActiveUser, UserID, SecurityID
-from schemas import InvoiceCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
+from schemas import STATUS_MAP, InvoiceCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
     InvoiceListResponse, InvoiceByStatus, BulkPDFResponse
 from db_models import Invoice
 from logging_config import logger
@@ -44,8 +44,7 @@ DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]
 
 def valid_status_change(old_status: Status, new_status: Status):
 
-    if ((old_status == Status.paid) or (old_status == Status.overdue and new_status == Status.draft) or
-            (old_status == Status.sent and new_status == Status.draft)):
+    if not (new_status in STATUS_MAP[old_status]):
         raise InvalidStatusChangeError(from_status=old_status, to_status=new_status)
 
 # Background tasks

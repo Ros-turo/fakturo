@@ -12,6 +12,12 @@ class Status(str, Enum):
     paid = "paid"
     overdue = "overdue"
 
+STATUS_MAP: dict[Status, set[Status]] = \
+    {Status.draft:{Status.sent, Status.paid,Status.overdue},
+     Status.sent:{Status.paid,Status.overdue},
+     Status.paid:set(),
+     Status.overdue:{Status.sent, Status.paid},}
+
 class Action(str, Enum):
     update = "UPDATE"
     insert = "INSERT"
