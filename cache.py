@@ -1,7 +1,8 @@
+import asyncio
 import time
 
 import redis.asyncio as redis
-from typing import cast
+from typing import Any, cast
 from jose import jwt, JWTError
 
 from settings import settings
@@ -42,3 +43,12 @@ async def is_token_in_blacklist(jti:str) -> bool:
     if response is None:
         return False
     return True
+
+async def acquire_lock(key:str, ttl:int) -> bool:
+
+    response = await r.set(f'lock:{key}', "1", nx=True, ex=ttl)
+    return bool(response)
+
+async def release_lock(key:str) -> None:
+
+    await r.delete(f"lock:{key}")
