@@ -1,18 +1,14 @@
 from datetime import date
-from decimal import Decimal
 
 from sqlalchemy import select, func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from db_models import Invoice, InvoiceItem, AuditLog
+from repositories.base_repository import BaseRepo
 from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir, InvoiceByStatus
-from sqlalchemy.ext.asyncio import AsyncSession
 
-class InvoiceRepo:
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
+class InvoiceRepo(BaseRepo):
 
     async def _invoice_exist_checker(self, invoice: Invoice) -> bool:
 

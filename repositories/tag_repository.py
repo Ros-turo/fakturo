@@ -3,12 +3,11 @@ from sqlalchemy.orm import selectinload
 
 from db_models import Tag, Invoice, InvoiceTag
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-class TagRepo:
+from repositories.base_repository import BaseRepo
 
-    def __init__(self, db:AsyncSession):
-        self.db = db
+class TagRepo(BaseRepo):
+
 
     async def create_tag(self, name: str, owner_id: int) -> Tag:
         new_tag = Tag(name=name, owner_id=owner_id)

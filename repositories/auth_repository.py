@@ -1,14 +1,11 @@
 from datetime import datetime, timezone
 
-from database import DBSession
 from db_models import RefreshToken
+from repositories.base_repository import BaseRepo
 
 from sqlalchemy import select
 
-class AuthRepo:
-
-    def __init__(self,db:DBSession):
-        self.db = db
+class AuthRepo(BaseRepo):
 
     async def get_refresh_token(self, jti: str) -> RefreshToken | None:
 

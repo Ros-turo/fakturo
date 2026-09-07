@@ -1,15 +1,12 @@
-from typing import Sequence
-
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.orm.exc import StaleDataError
 
-from database import DBSession
 from db_models import Client
+from repositories.base_repository import BaseRepo
 
 
-class ClientRepo:
-    def __init__(self, db: DBSession):
-        self.db = db
+class ClientRepo(BaseRepo):
+
 
     async def get_all_clients(self, uid: int)-> list[Client]:
         clients = await self.db.execute(select(Client).where(Client.owner_id == uid))
