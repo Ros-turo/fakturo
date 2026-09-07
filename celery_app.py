@@ -1,10 +1,13 @@
 import asyncio
+import time
 
+import redis.asyncio as redis
 from celery import Celery
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import joinedload, selectinload
 
+from cache import release_lock
 from db_models import Invoice
 from settings import settings
 from pdf import invoice_pdf
@@ -17,13 +20,14 @@ celery_app = Celery(
 )
 
 @celery_app.task(autoretry_for=(ConnectionError,), max_retries=3, retry_backoff=True)
-def send_email_task(result: list[bytes|str], text:str ):
+def send_email_task(result: list[bytes|str], text:str ) -> None:
 
     pdf_bytes, email = result
-    print(pdf_bytes, email, text)
+    time.sleep(2)
+    #pPlaceholder for SMTP
 
 @celery_app.task(autoretry_for=(ConnectionError,), max_retries=3, retry_backoff=True)
-def generate_pdf(invoice_id: int, uid: int):
+def generate_pdf(invoice_id: int, uid: int) -> list:
 
     invoice = asyncio.run(_get_invoice_async(invoice_id, uid))
 
@@ -36,9 +40,10 @@ def generate_pdf(invoice_id: int, uid: int):
     result = [pdf, email]
     return result
 
+@celery_app.task(autoretry_for=(ConnectionError,), max_retries=3, retry_backoff=True)
+def release_lock_task(*args, key:str) -> None:
 
-
-
+    asyncio.run(_delete_redis_key(key))
 
 async def _get_invoice_async(invoice_id: int, uid: int):
     engine = create_async_engine(url=settings.db_url)
@@ -56,3 +61,8 @@ async def _get_invoice_async(invoice_id: int, uid: int):
             return invoice.scalar_one_or_none()
     finally:
         await engine.dispose()
+
+async def _delete_redis_key(key:str) -> None:
+    r = redis.Redis(host=settings.redis_host, port=settings.redis_port, decode_responses=True)
+    await r.delete(key)
+    await r.aclose()

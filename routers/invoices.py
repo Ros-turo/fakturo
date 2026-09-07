@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, Path, Query
 from starlette.background import BackgroundTasks
 from starlette.responses import JSONResponse, StreamingResponse
 
-from celery_app import generate_pdf, send_email_task
+from cache import acquire_lock, release_lock
+from celery_app import generate_pdf, release_lock_task, send_email_task
 from database import DBSession, SessionLocal
 from db_models import Invoice
 from exceptions import (
@@ -185,9 +186,13 @@ async def get_one_invoice(invoice: GetterInvoice):
 async def invoice_to_pdf(uid: UserID, invoice_id: Annotated[int, Path()]):
     """ Convert invoice to pdf"""
 
+    if not (await acquire_lock(key=f"invoice:{invoice_id}", ttl=30)):
+        raise InvoiceConflict("Invoice already generate pdf")
+
     pdf_email_workflow = chain(
         generate_pdf.s(invoice_id, uid),
-        send_email_task.s(text="Your invoice in pdf is coming")
+        send_email_task.s(text="Your invoice in pdf is coming"),
+        release_lock_task.s(key=f"lock:invoice:{invoice_id}"),
     )
 
     pdf_email_workflow.apply_async()
