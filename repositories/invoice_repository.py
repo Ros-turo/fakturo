@@ -1,12 +1,13 @@
 from datetime import date
 
-from sqlalchemy import select, func, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
-from db_models import Invoice, InvoiceItem, AuditLog
+from db_models import AuditLog, Invoice, InvoiceItem
 from repositories.base_repository import BaseRepo
-from schemas import InvoiceCreate, Status, Action, OrderBy, OrderDir, InvoiceByStatus
+from schemas import Action, InvoiceByStatus, InvoiceCreate, OrderBy, OrderDir, Status
+
 
 class InvoiceRepo(BaseRepo):
 

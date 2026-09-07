@@ -1,4 +1,5 @@
 from sqlalchemy import select
+
 from db_models import User
 from repositories.base_repository import BaseRepo
 

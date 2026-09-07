@@ -3,20 +3,35 @@ import time
 from typing import Annotated
 
 from celery import chain
-from fastapi import APIRouter, Path, HTTPException, Response, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 from starlette.background import BackgroundTasks
-from starlette.responses import StreamingResponse, JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
-from routers.auth import CurrentUser, CurrentActiveUser, UserID, SecurityID
-from schemas import STATUS_MAP, InvoiceCreate, InvoiceResponse, Status, InvoiceStats, OrderBy, OrderDir, \
-    InvoiceListResponse, InvoiceByStatus, BulkPDFResponse
-from db_models import Invoice
-from logging_config import logger
-from repositories.invoice_repository import InvoiceRepo
+from celery_app import generate_pdf, send_email_task
 from database import DBSession, SessionLocal
+from db_models import Invoice
+from exceptions import (
+    InvalidStatusChangeError,
+    InvoiceConflict,
+    InvoiceDeleteError,
+    InvoiceNotFoundError,
+)
+from logging_config import logger
 from pdf import invoice_pdf
-from exceptions import InvoiceNotFoundError, InvoiceDeleteError, InvoiceConflict, InvalidStatusChangeError
-from celery_app import celery_app, generate_pdf, send_email_task
+from repositories.invoice_repository import InvoiceRepo
+from routers.auth import CurrentActiveUser, CurrentUser, SecurityID, UserID
+from schemas import (
+    STATUS_MAP,
+    BulkPDFResponse,
+    InvoiceByStatus,
+    InvoiceCreate,
+    InvoiceListResponse,
+    InvoiceResponse,
+    InvoiceStats,
+    OrderBy,
+    OrderDir,
+    Status,
+)
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 

@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
+from sqlalchemy import select
+
 from db_models import RefreshToken
 from repositories.base_repository import BaseRepo
 
-from sqlalchemy import select
 
 class AuthRepo(BaseRepo):
 
@@ -26,7 +27,6 @@ class AuthRepo(BaseRepo):
         self.db.add(token_data)
         await self.db.commit()
 
-        return None
 
     async def revoke_token(self, token:RefreshToken) -> None:
 

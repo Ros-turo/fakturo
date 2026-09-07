@@ -1,10 +1,10 @@
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
-from db_models import Tag, Invoice, InvoiceTag
-from sqlalchemy import select
-
+from db_models import Invoice, InvoiceTag, Tag
 from repositories.base_repository import BaseRepo
+
 
 class TagRepo(BaseRepo):
 

@@ -1,22 +1,31 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, Response, Path
+from fastapi import APIRouter, Depends, Path, Request, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-
 from starlette.responses import JSONResponse
 
-from exceptions import DeviceNotFoundError, EmailExistError, InvalidCredentialsError, RefreshTokenNotFoundError, SessionInBlacklistError, UserInactiveError
-from schemas import UserCreate, RefreshTokensResponse
+from cache import is_token_in_blacklist
 from database import DBSession
 from db_models import User
-from security.rate_limit import check_timeout, LADepends
-from security.hashing import hash_password, verify_password
-from security.tokens import decode_jwt_token, check_refresh_token
-from repositories.user_repository import UserRepo
+from exceptions import (
+    DeviceNotFoundError,
+    EmailExistError,
+    InvalidCredentialsError,
+    RefreshTokenNotFoundError,
+    SessionInBlacklistError,
+    UserInactiveError,
+)
 from repositories.auth_repository import AuthRepo
-from services.auth_service import blacklist_token, get_refresh_token_payload, create_token_tuple
-from cache import is_token_in_blacklist
-
+from repositories.user_repository import UserRepo
+from schemas import RefreshTokensResponse, UserCreate
+from security.hashing import hash_password, verify_password
+from security.rate_limit import LADepends, check_timeout
+from security.tokens import check_refresh_token, decode_jwt_token
+from services.auth_service import (
+    blacklist_token,
+    create_token_tuple,
+    get_refresh_token_payload,
+)
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 

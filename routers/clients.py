@@ -1,18 +1,15 @@
-import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, HTTPException
 import httpx
+from fastapi import APIRouter, Depends, HTTPException, Path
 
-from repositories.client_repository import ClientRepo
-from schemas import ClientCreate, ClientResponse, ClientAres
-from routers.auth import CurrentUser
+from cache import delete_cache, get_cache, set_cache
 from database import DBSession
-from db_models import  Client
+from db_models import Client
 from exceptions import ClientNotFoundError
-from cache import set_cache, get_cache, delete_cache
-from logging_config import logger
-
+from repositories.client_repository import ClientRepo
+from routers.auth import CurrentUser
+from schemas import ClientAres, ClientCreate, ClientResponse
 
 router = APIRouter(prefix='/clients', tags=['clients'])
 
@@ -29,7 +26,7 @@ def ares_parsing(data:dict):
     return {"name":data["obchodniJmeno"],
             "ico":data["ico"],
             "dic": dic,
-            "vat": True if dic else False,
+            "vat": bool(dic),
             "city": data["sidlo"]["nazevObce"],
             "psc":data["sidlo"]["psc"],
             "street":street,
