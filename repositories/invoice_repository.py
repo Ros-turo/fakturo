@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any, Generator, AsyncGenerator
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -75,7 +76,7 @@ class InvoiceRepo(BaseRepo):
             "items": invoices_items_result.scalars().all()
         }
 
-    async def a_get_all_invoices(self, uid: int):
+    async def a_get_all_invoices(self, uid: int) -> AsyncGenerator[Invoice, None]:
         result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid)
                                       .options(selectinload(Invoice.invoice_items),
                                                selectinload(Invoice.owner),
@@ -96,7 +97,7 @@ class InvoiceRepo(BaseRepo):
         invoice = invoice_result.scalar_one_or_none()
         return invoice
 
-    async def get_invoices_by_id(self,uid: int ,invoices_id: set[int]):
+    async def get_invoices_by_id(self,uid: int ,invoices_id: set[int]) -> AsyncGenerator[Invoice, None]:
         stmt =(select(Invoice)
             .where(Invoice.owner_id == uid,
                 Invoice.id.in_(invoices_id))
@@ -143,7 +144,7 @@ class InvoiceRepo(BaseRepo):
         await self.db.commit()
         return int(result.rowcount) # type: ignore [attr-defined]
 
-    async def invoice_stats(self, uid:int):
+    async def invoice_stats(self, uid:int) -> dict[str, Any] :
         overdue_row = await self.update_overdue_invoices(uid=uid)
         main_stmt = (
             select(func.count(Invoice.id).label("total_invoices"),
@@ -171,16 +172,16 @@ class InvoiceRepo(BaseRepo):
             "overdue_updated": overdue_row
         }
 
-    async def get_invoices_above_avg(self, uid):
+    async def get_invoices_above_avg(self, uid) -> list[Invoice]:
 
         sub_query = (select(func.avg(Invoice.total_amount)).where(Invoice.owner_id == uid)).scalar_subquery()
 
         stmt = select(Invoice).where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
 
-        result = await self.db.execute(stmt)
+        row_result = await self.db.execute(stmt)
 
-
-        return result.scalars().all()
+        result = list(row_result.scalars().all())
+        return result
 
     async def delete_invoice(self, invoice) -> bool:
 
