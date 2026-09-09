@@ -1,4 +1,5 @@
 from typing import Any, Generator, AsyncGenerator
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -45,6 +46,11 @@ def valid_client_data() -> dict[str, Any]:
 def clear_attempt_logger():
     yield
     attempt_logger.clear()
+
+@pytest.fixture(autouse=True)
+def mock_notify_invoice_created():
+    with patch("routers.invoices.notify_invoice_created"):
+        yield
 
 @pytest.fixture(scope="session")
 async def engine():
@@ -114,3 +120,13 @@ async def user_with_one_client(user: AsyncClient, valid_client_data: dict[str, A
     client_id = int(client_id)
 
     yield user, client_id
+
+
+async def register_and_switch_to_new_user(user: AsyncClient,
+                                          user_data: dict[str, str],
+                                          email_suffix: str) -> int:
+    new_user_data = {**user_data, "email": f"{email_suffix}_{user_data['email']}"}
+    new_user = await user.post("/auth/register", json=new_user_data)
+    new_user_id = new_user.json()["UID"]
+    app.dependency_overrides[get_current_user] = lambda: {"uid": new_user_id}
+    return new_user_id
