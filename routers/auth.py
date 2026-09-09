@@ -46,7 +46,7 @@ AuthDepends = Annotated[AuthRepo, Depends(get_auth_repo)]
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
 async def token_sender(email:str, uid: int, response: Response, auth_repo: AuthDepends):
-    access_token, refresh_token = await create_token_tuple(email=email, uid=uid, auth_repo=auth_repo)
+    access_token, refresh_token = await create_token_tuple(email=email, uid=uid, token_writer=auth_repo)
 
     response.set_cookie(
         key="refresh_token",

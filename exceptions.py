@@ -3,7 +3,7 @@ from schemas import Status
 
 class AuthError(Exception):
 
-    def __init__(self, status_code: int, detail: str):
+    def __init__(self, status_code: int, detail: str) -> None:
         self.status_code = status_code
         self.detail = detail
 
@@ -11,32 +11,32 @@ class CredentialsError(AuthError):
     pass
 
 class InvalidCredentialsError(CredentialsError):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=401, detail="Invalid credentials")
 
 class EmailExistError(CredentialsError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=400, detail="Account with this email already exist")
 
 class RateLimitError(AuthError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=429, detail="Too many attempts, try later")
 
 class UnauthorizedError(AuthError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=401, detail="Unauthorized")
 
 class SessionInBlacklistError(AuthError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=423, detail="The session has been blocked")
 
 class UserInactiveError(AuthError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=423, detail="The account has been blocked")
 
 class TokenError(AuthError):
@@ -44,89 +44,89 @@ class TokenError(AuthError):
 
 class InvalidTokenError(TokenError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=401, detail="Unauthorized")
 
 class ExpiredTokenError(TokenError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=401, detail="Token has expired")
 
 class RevokedTokenError(TokenError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=423, detail="Token is revoked")
 
 
 class FakturoNotFoundError(Exception):
 
-    def __init__(self, resource_name:str, resource_id:int | None = None):
+    def __init__(self, resource_name:str, resource_id:int | None = None) -> None:
         self.resource_name = resource_name
         self.resource_id = resource_id
 
 class InvoiceNotFoundError(FakturoNotFoundError):
 
-    def __init__(self, invoice_id: int):
+    def __init__(self, invoice_id: int) -> None:
         super().__init__(resource_name="Invoice", resource_id=invoice_id)
 
 class UserNotFoundError(FakturoNotFoundError):
 
-    def __init__(self, user_id: int):
+    def __init__(self, user_id: int) -> None:
         super().__init__(resource_name="User", resource_id=user_id)
 
 class ClientNotFoundError(FakturoNotFoundError):
 
-    def __init__(self, client_id):
+    def __init__(self, client_id: int) -> None:
         super().__init__(resource_name="Client", resource_id=client_id)
 
 class RefreshTokenNotFoundError(FakturoNotFoundError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(resource_name="Refresh token")
 
 class DeviceNotFoundError(FakturoNotFoundError):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(resource_name="Device")
 
 
 
 class FakturoDeleteError(Exception):
 
-    def __init__(self, resource_name, exc_reason):
+    def __init__(self, resource_name: str, exc_reason: str) -> None:
         self.resource_name = resource_name
         self.resource_reason = exc_reason
 
 class InvoiceDeleteError(FakturoDeleteError):
 
-    def __init__(self, resource_reason):
+    def __init__(self, resource_reason: str) -> None:
         super().__init__(resource_name="Invoice", exc_reason=resource_reason)
 
 
 
 class FakturoConflictError(Exception):
 
-    def __init__(self, resource_name, exc_detail):
+    def __init__(self, resource_name: str, exc_detail: str) -> None:
         self.resource_name = resource_name
         self.exc_detail = exc_detail
 
 class InvoiceConflict(FakturoConflictError):
 
-    def __init__(self, exc_detail):
+    def __init__(self, exc_detail: str) -> None:
         super().__init__(resource_name="Invoice", exc_detail=exc_detail)
 
 
 
 class BusinessRuleError(Exception):
 
-    def __init__(self, rule_name: str, detail: str):
+    def __init__(self, rule_name: str, detail: str) -> None:
 
         self.rule = rule_name
         self.detail = detail
 
 class InvalidStatusChangeError(BusinessRuleError):
     
-    def __init__(self, from_status:Status, to_status:Status):
+    def __init__(self, from_status:Status, to_status:Status) -> None:
         super().__init__(rule_name="Invalid changing status",
                          detail= f"You cannot change status from {from_status.value} to {to_status.value}")
 
@@ -135,7 +135,7 @@ class CeleryError(Exception):
 
 class InvoiceNotFound(CeleryError):
 
-    def __init__(self, invoice_id: int, uid:int):
+    def __init__(self, invoice_id: int, uid:int) -> None:
         self.invoice_id = invoice_id
         self.uid = uid
         super().__init__(f"Failed to find invoice: {invoice_id} for user: {uid}")

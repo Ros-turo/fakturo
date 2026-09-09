@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Self
 from datetime import date, datetime
 from enum import Enum
 
@@ -104,7 +104,7 @@ class InvoiceCreate(InvoiceBase):
         return value
 
     @model_validator(mode="after")
-    def due_date_after_issue_date(self):
+    def due_date_after_issue_date(self) -> Self:
         if self.due_date < self.issue_date:
             raise ValueError("Due date cannot be early than issue date")
         return self

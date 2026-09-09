@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, AsyncGenerator, Protocol
 
 from db_models import Invoice
@@ -21,7 +22,7 @@ class InvoiceReporting(Protocol):
 
     async def invoice_stats(self, uid: int) -> dict[str, Any]: ...
 
-    async def get_invoices_above_avg(self, uid) -> list[Invoice]: ...
+    async def get_invoices_above_avg(self, uid: int) -> list[Invoice]: ...
 
 
 class InvoiceListing(Protocol):
@@ -39,3 +40,8 @@ class InvoiceListing(Protocol):
 class InvoiceBatch(Protocol):
 
     async def update_overdue_invoices(self,uid:int) -> int: ...
+
+class RefreshTokenWriter(Protocol):
+
+    async def post_refresh_token(self, uid: int, jti: str,
+                                 expired_at: datetime, email: str) -> None: ...

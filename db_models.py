@@ -1,11 +1,12 @@
 from datetime import datetime, date
 from decimal import Decimal
-from typing import List
+from typing import Any, List
 
 from sqlalchemy import (Column, Integer, String, Boolean, Numeric, DateTime, ForeignKey, Date,
                         Enum as SEnum, UniqueConstraint, event, select, and_)
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship, Mapped, mapped_column, Session, with_loader_criteria
+from sqlalchemy.orm import ORMExecuteState, relationship, Mapped, mapped_column, Session, with_loader_criteria
+from sqlalchemy.orm.attributes import Event
 from sqlalchemy.sql import func
 from database import Base
 from schemas import Status, Action
@@ -85,7 +86,7 @@ class Invoice(Base):
         return and_(cls.status != Status.paid, cls.due_date < date.today())  # pyright: ignore [reportArgumentType]
 
 @event.listens_for(Session, "do_orm_execute")
-def soft_delete_filter(execute_state):
+def soft_delete_filter(execute_state: ORMExecuteState) -> None:
     if execute_state.execution_options.get("include_delete", False):
         return
 
@@ -95,7 +96,7 @@ def soft_delete_filter(execute_state):
         )
 
 @event.listens_for(Invoice.status, "set")
-def on_status_change(target, value, oldvalue, _):
+def on_status_change(target: Invoice, value: Status, oldvalue: Any, _: Event) -> None:
     if str(oldvalue) != "NEVER_SET":
         print(f"{target} change value {oldvalue} -> {value}")
     return None

@@ -1,7 +1,7 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession, AsyncEngine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from typing import Annotated
+from typing import Annotated, AsyncGenerator
 from settings import settings
 
 engine: AsyncEngine = create_async_engine(settings.db_url,
@@ -17,7 +17,7 @@ class Base(DeclarativeBase):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     pass
 
-async def get_db():
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     db = SessionLocal()
     try:
         yield db

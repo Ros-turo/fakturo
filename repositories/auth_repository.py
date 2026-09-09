@@ -16,7 +16,7 @@ class AuthRepo(BaseRepo):
         return token_data.scalar_one_or_none()
 
     async def post_refresh_token(self, uid: int, jti: str,
-                                 expired_at: datetime, email: str):
+                                 expired_at: datetime, email: str) -> None:
 
         token_data = RefreshToken(
             jti = jti,

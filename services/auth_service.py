@@ -1,15 +1,15 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Any
 from secrets import token_urlsafe
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 
 from cache import add_token_to_blacklist
 from exceptions import RefreshTokenNotFoundError
-from repositories.auth_repository import AuthRepo
+from repositories.interfaces import RefreshTokenWriter
 from security.tokens import AccessTokenExtractor, decode_jwt_token, encode_jwt_token, create_access_token
 
 
-async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
+async def create_refresh_token(email: str, uid: int, token_writer: RefreshTokenWriter) -> str:
     now = datetime.now(timezone.utc)
     expire_time = now + timedelta(days=15)
     jti = token_urlsafe(32)
@@ -23,15 +23,15 @@ async def create_refresh_token(email: str, uid: int, auth_repo: AuthRepo):
 
     token = encode_jwt_token(payload)
 
-    await auth_repo.post_refresh_token(uid=uid, email=email,
-                                      jti=jti, expired_at=expire_time)
+    await token_writer.post_refresh_token(uid=uid, email=email,
+                                          jti=jti, expired_at=expire_time)
 
     return token
 
-async def create_token_tuple(email:str, uid: int, auth_repo: AuthRepo) -> tuple[str,str]:
+async def create_token_tuple(email:str, uid: int, token_writer: RefreshTokenWriter) -> tuple[str,str]:
 
     access_token = create_access_token(email=email, uid=uid)
-    refresh_token = await create_refresh_token(email=email, uid=uid, auth_repo= auth_repo)
+    refresh_token = await create_refresh_token(email=email, uid=uid, token_writer=token_writer)
 
     return access_token, refresh_token
 
@@ -42,7 +42,7 @@ async def blacklist_token(token: AccessTokenExtractor) -> None:
 
 AddTokenBlacklist = Annotated[None, Depends(blacklist_token)]
 
-def get_refresh_token_payload(request:Request) -> dict:
+def get_refresh_token_payload(request:Request) -> dict [str, Any]:
 
     token = request.cookies.get("refresh_token", None)
     if token is None:
