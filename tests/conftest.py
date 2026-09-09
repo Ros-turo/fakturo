@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generator, AsyncGenerator
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -75,9 +75,10 @@ async def db(engine):
         yield session
         await session.close()
         await conn.rollback()
+
 @pytest.fixture(scope="function")
-async def _base_user(db):
-    def get_override_db():
+async def _base_user(db:AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    def get_override_db() -> Generator[AsyncSession, None, None]:
         yield db
     app.user_middleware = []
     app.middleware_stack = None
@@ -90,11 +91,11 @@ async def _base_user(db):
     app.dependency_overrides.clear()
 
 @pytest.fixture(scope="function")
-async def unauthorized_user(_base_user):
+async def unauthorized_user(_base_user: AsyncClient) -> AsyncClient:
     return _base_user
 
 @pytest.fixture(scope="function")
-async def user(_base_user, user_data):
+async def user(_base_user: AsyncClient, user_data: dict[str, str]) -> AsyncGenerator[AsyncClient, None]:
 
 
     response = await _base_user.post("/auth/register", json=user_data)
@@ -104,10 +105,12 @@ async def user(_base_user, user_data):
     app.dependency_overrides.clear()
 
 @pytest.fixture(scope="function")
-async def user_with_one_client(user, valid_client_data):
+async def user_with_one_client(user: AsyncClient, valid_client_data: dict[str, Any]) -> AsyncGenerator[tuple[AsyncClient, int], None]:
 
     response = await user.post("/clients/", json=valid_client_data)
     client_data = response.json()
     client_id = client_data["id"]
+
+    client_id = int(client_id)
 
     yield user, client_id

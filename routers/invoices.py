@@ -3,23 +3,24 @@ import time
 from typing import Annotated
 
 from celery import chain
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Body, Depends, Path, Query
 from starlette.background import BackgroundTasks
 from starlette.responses import JSONResponse, StreamingResponse
 
 from celery_app import generate_pdf, send_email_task
 from database import DBSession, SessionLocal
-from db_models import Invoice
+from db_models import Client, Invoice
 from exceptions import (
     InvalidStatusChangeError,
     InvoiceConflict,
     InvoiceDeleteError,
-    InvoiceNotFoundError,
+    InvoiceNotFoundError, ClientNotFoundError,
 )
 from logging_config import logger
 from pdf import invoice_pdf
 from repositories.invoice_repository import InvoiceRepo
 from routers.auth import CurrentActiveUser, CurrentUser, SecurityID, UserID
+from routers.clients import ClientDepends
 from schemas import (
     STATUS_MAP,
     BulkPDFResponse,
@@ -40,6 +41,13 @@ def get_invoice_repo(db: DBSession):
     return InvoiceRepo(db)
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
+
+async def client_getter(client_repo: ClientDepends, uid: UserID, invoice_data: InvoiceCreate ) -> Client:
+    client_id = invoice_data.client_id
+    client = await client_repo.get_one_client(uid=uid, client_id=client_id)
+    if client is None:
+        raise ClientNotFoundError(client_id=client_id)
+    return client
 
 async def invoice_getter(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
@@ -80,7 +88,7 @@ async def get_invoice_json(invoices):
                         .model_dump_json())
         yield invoice_json + " \n"
 
-@router.post("/create_invoice", response_model=InvoiceResponse)
+@router.post("/create_invoice", response_model=InvoiceResponse, status_code=201, dependencies=[Depends(client_getter)])
 async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
                    repo:InvoiceDepends, background_task: BackgroundTasks):
 

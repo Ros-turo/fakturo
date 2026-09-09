@@ -18,6 +18,7 @@ class InvoiceRepo(BaseRepo):
         return checker is not None
 
     async def create_invoice(self, uid:int, invoice: InvoiceCreate) -> Invoice:
+
         total_amount = sum(item.total_with_vat for item in invoice.invoice_items)
         invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id = uid,
                                 total_amount=total_amount)
