@@ -9,6 +9,13 @@ from db_models import AuditLog, Invoice, InvoiceItem
 from repositories.base_repository import BaseRepo
 from schemas import Action, InvoiceByStatus, InvoiceCreate, OrderBy, OrderDir, Status
 
+INVOICE_EAGER_OPTIONS = (
+    selectinload(Invoice.invoice_items),
+    selectinload(Invoice.owner),
+    selectinload(Invoice.client),
+    selectinload(Invoice.tags)
+)
+
 
 class InvoiceRepo(BaseRepo):
 
@@ -80,20 +87,14 @@ class InvoiceRepo(BaseRepo):
 
     async def a_get_all_invoices(self, uid: int) -> AsyncGenerator[Invoice, None]:
         result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid)
-                                      .options(selectinload(Invoice.invoice_items),
-                                               selectinload(Invoice.owner),
-                                               selectinload(Invoice.client),
-                                               selectinload(Invoice.tags))) # DRY_1 - take all subtable to eager loader
+                                      .options(*INVOICE_EAGER_OPTIONS))
         invoices = result.scalars()
         async for invoice in invoices:
             yield invoice
 
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
         invoice_result = await self.db.execute(select(Invoice)
-                                               .options(selectinload(Invoice.invoice_items),
-                                                        selectinload(Invoice.owner),
-                                                        selectinload(Invoice.client),
-                                                        selectinload(Invoice.tags))# DRY_1 - take all subtable to eager loader
+                                               .options(*INVOICE_EAGER_OPTIONS)
                                                .where(Invoice.id == invoice_id,
                                                       Invoice.owner_id == uid))
         invoice = invoice_result.scalar_one_or_none()
@@ -101,13 +102,8 @@ class InvoiceRepo(BaseRepo):
 
     async def get_invoices_by_id(self,uid: int ,invoices_id: set[int]) -> AsyncGenerator[Invoice, None]:
         stmt =(select(Invoice)
-            .where(Invoice.owner_id == uid,
-                Invoice.id.in_(invoices_id))
-            .options(
-                    selectinload(Invoice.invoice_items),
-                    selectinload(Invoice.owner),
-                    selectinload(Invoice.client),
-                    selectinload(Invoice.tags)))# DRY_1 - take all subtable to eager loader
+            .where(Invoice.owner_id == uid, Invoice.id.in_(invoices_id))
+            .options(*INVOICE_EAGER_OPTIONS))
         invoices = await self.db.stream(stmt)
         result = invoices.scalars()
         async for invoice in result:
