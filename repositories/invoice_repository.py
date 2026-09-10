@@ -19,7 +19,7 @@ class InvoiceRepo(BaseRepo):
 
     async def create_invoice(self, uid:int, invoice: InvoiceCreate) -> Invoice:
 
-        total_amount = sum(item.total_with_vat for item in invoice.invoice_items)
+        total_amount = sum(item.total_with_vat for item in invoice.invoice_items) # rewrite to metod
         invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id = uid,
                                 total_amount=total_amount)
         self.db.add(invoice_in_db)
@@ -28,16 +28,17 @@ class InvoiceRepo(BaseRepo):
         await self.db.execute(insert(InvoiceItem)
                               .values([{"invoice_id": invoice_in_db.id,
                                                      **item.model_dump(exclude={"subtotal", "total_with_vat"})}
-                                                    for item in invoice.invoice_items]))
+                                                    for item in invoice.invoice_items])) #SRP - creating a ivnoiceitems-> invoiceitem repo
         await self.db.commit()
         result = await self.db.execute(select(Invoice)
                                        .options(selectinload(Invoice.invoice_items))
                                        .where(Invoice.id == invoice_in_db.id))
-        return result.scalar_one()
+        return result.scalar_one() # Create and get invoice? SRP problem?
 
     async def get_all_invoices(self, uid:int, client_id: int | None = None,
                                order_by: OrderBy | None = None, order_dir: OrderDir | None = None,
-                               status: Status | None = None, limit: int | None = None, offset:int = 0) -> dict:
+                               status: Status | None = None, limit: int | None = None, offset:int = 0) -> dict: # too much argument
+        # -> new class? or classes? Separate to filter_where logic(client_id, status), pagination(limit, offset) and order_logic(order_by, order_dir)
         items_stmt =(select(Invoice)
                .options(selectinload(Invoice.invoice_items))
                .where(Invoice.owner_id == uid)
@@ -47,7 +48,7 @@ class InvoiceRepo(BaseRepo):
         count_stmt =(select(func.count(Invoice.id))
                .where(Invoice.owner_id == uid)
                )
-        filters = []
+        filters = [] # separate to new method
 
         if not client_id is None:
             filters.append(Invoice.client_id == client_id)
@@ -58,7 +59,7 @@ class InvoiceRepo(BaseRepo):
         count_stmt = count_stmt.where(*filters)
         count_result = await self.db.execute(count_stmt)
 
-        if not order_by is None:
+        if not order_by is None: # Order by logic -> separate to new method
             order = getattr(Invoice, order_by.value)
             if not order_dir is None:
                 order = getattr(order, order_dir.value)()
@@ -82,7 +83,7 @@ class InvoiceRepo(BaseRepo):
                                       .options(selectinload(Invoice.invoice_items),
                                                selectinload(Invoice.owner),
                                                selectinload(Invoice.client),
-                                               selectinload(Invoice.tags)))
+                                               selectinload(Invoice.tags))) # DRY_1 - take all subtable to eager loader
         invoices = result.scalars()
         async for invoice in invoices:
             yield invoice
@@ -92,7 +93,7 @@ class InvoiceRepo(BaseRepo):
                                                .options(selectinload(Invoice.invoice_items),
                                                         selectinload(Invoice.owner),
                                                         selectinload(Invoice.client),
-                                                        selectinload(Invoice.tags))
+                                                        selectinload(Invoice.tags))# DRY_1 - take all subtable to eager loader
                                                .where(Invoice.id == invoice_id,
                                                       Invoice.owner_id == uid))
         invoice = invoice_result.scalar_one_or_none()
@@ -106,7 +107,7 @@ class InvoiceRepo(BaseRepo):
                     selectinload(Invoice.invoice_items),
                     selectinload(Invoice.owner),
                     selectinload(Invoice.client),
-                    selectinload(Invoice.tags)))
+                    selectinload(Invoice.tags)))# DRY_1 - take all subtable to eager loader
         invoices = await self.db.stream(stmt)
         result = invoices.scalars()
         async for invoice in result:
@@ -118,7 +119,7 @@ class InvoiceRepo(BaseRepo):
             row_id=invoice.id,
             action=Action.update,
             old_value=str(invoice.status),
-            new_value=str(new_status)
+            new_value=str(new_status)# SRP create AuditLog instance not a Invoicerepo responsability
         )
         self.db.add(new_log)
         invoice.status = new_status
@@ -133,9 +134,10 @@ class InvoiceRepo(BaseRepo):
                                        .group_by(Invoice.status))
         result = list(raw_result.mappings().all())
 
-        return [InvoiceByStatus(**data) for data in result]
+        return [InvoiceByStatus(**data) for data in result] # SRP InvoiceRepo return a db result not pydantic
 
     async def update_overdue_invoices(self,uid:int) -> int:
+        # Wrong DRY - need a method which only get a overdue invoices, without updates...
         stmt = (update(Invoice)
                 .where(Invoice.owner_id == uid,
                        Invoice.due_date < date.today(),
@@ -146,7 +148,8 @@ class InvoiceRepo(BaseRepo):
         return int(result.rowcount) # type: ignore [attr-defined]
 
     async def invoice_stats(self, uid:int) -> dict[str, Any] :
-        overdue_row = await self.update_overdue_invoices(uid=uid)
+        # CQS problem
+        overdue_row = await self.update_overdue_invoices(uid=uid) # Not safety, SRP problem
         main_stmt = (
             select(func.count(Invoice.id).label("total_invoices"),
                    func.sum(Invoice.total_amount).label("total_revenue")
@@ -161,7 +164,7 @@ class InvoiceRepo(BaseRepo):
                    )
             .where(Invoice.owner_id == uid)
             .group_by(Invoice.status)
-        )
+        ) # DRY_2 get_sum_by_status returned value(almost)
         main_result = await self.db.execute(main_stmt)
         main_row = main_result.one()
         sub_result = await self.db.execute(sub_stmt)

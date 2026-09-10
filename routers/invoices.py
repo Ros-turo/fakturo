@@ -189,7 +189,7 @@ async def get_invoices_above_average(user: CurrentActiveUser, invoice_repo: Invo
 async def get_one_invoice(invoice: GetterInvoice):
     return invoice
 
-@router.post("/{invoice_id}/pdf")
+@router.post("/{invoice_id}/pdf", dependencies=[Depends(invoice_getter)])
 async def invoice_to_pdf(uid: UserID, invoice_id: Annotated[int, Path()]):
     """ Convert invoice to pdf"""
 
