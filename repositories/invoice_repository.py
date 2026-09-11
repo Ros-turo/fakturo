@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any, Generator, AsyncGenerator
 
-from sqlalchemy import func, select, update
+from sqlalchemy import RowMapping, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
@@ -122,15 +122,17 @@ class InvoiceRepo(BaseRepo):
         self.db.add(invoice)
         await self.db.commit()
 
-    async def get_sum_by_status(self, uid:int) -> list[InvoiceByStatus]:
-        raw_result = await self.db.execute(select(Invoice.status,
-                                              func.count(Invoice.id).label("count"),
-                                              func.sum(Invoice.total_amount).label("total"))
-                                       .where(Invoice.owner_id == uid)
-                                       .group_by(Invoice.status))
+    async def get_sum_by_status(self, uid:int) -> list[RowMapping]:
+        raw_result = await self.db.execute(
+            select(
+                Invoice.status,
+                func.count(Invoice.id).label("count"),
+                func.sum(Invoice.total_amount).label("total"))
+            .where(Invoice.owner_id == uid)
+            .group_by(Invoice.status))
         result = list(raw_result.mappings().all())
 
-        return [InvoiceByStatus(**data) for data in result] # SRP InvoiceRepo return a db result not pydantic
+        return result
 
     async def update_overdue_invoices(self,uid:int) -> int:
         # Wrong DRY - need a method which only get a overdue invoices, without updates...
@@ -153,22 +155,14 @@ class InvoiceRepo(BaseRepo):
             .where(Invoice.owner_id == uid)
         )
 
-        sub_stmt = (
-            select(Invoice.status,
-                   func.count(Invoice.status).label("count"),
-                   func.sum(Invoice.total_amount).label("total")
-                   )
-            .where(Invoice.owner_id == uid)
-            .group_by(Invoice.status)
-        ) # DRY_2 get_sum_by_status returned value(almost)
+        sub_stmt = await self.get_sum_by_status(uid) # DRY_2 get_sum_by_status returned value(almost)
         main_result = await self.db.execute(main_stmt)
         main_row = main_result.one()
-        sub_result = await self.db.execute(sub_stmt)
 
         return {
             "total_invoices": main_row.total_invoices,
             "total_revenue": main_row.total_revenue,
-            "by_status":[row._asdict() for row in sub_result.all()],
+            "by_status":[invoice for invoice in sub_stmt],
             "overdue_updated": overdue_row
         }
 

@@ -1,6 +1,6 @@
 from datetime import datetime, date, timedelta
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from fastapi import status
 from httpx import AsyncClient, Response

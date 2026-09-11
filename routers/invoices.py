@@ -3,7 +3,7 @@ import time
 from typing import Annotated
 
 from celery import chain
-from fastapi import APIRouter, Body, Depends, Path, Query
+from fastapi import APIRouter, Body, Depends, Path, Query, status
 from starlette.background import BackgroundTasks
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -122,9 +122,13 @@ async def get_invoices_stats(uid: UserID, repo:InvoiceDepends):
 
 
 @router.get("/sum_by_status", response_model=list[InvoiceByStatus])
-async def sum_by_status(uid: UserID, repo:InvoiceDepends)->list[InvoiceByStatus]:
+async def sum_by_status(uid: UserID, repo:InvoiceDepends) -> JSONResponse:
     result = await repo.get_sum_by_status(uid=uid)
-    return result
+    data = [InvoiceByStatus(**invoice) for invoice in result]
+    return JSONResponse(
+        status_code= status.HTTP_200_OK,
+        content = [invoice.model_dump(mode='json') for invoice in data]
+    )
 
 @router.get("/update_overdue")
 async def update_overdue(uid: UserID, repo: InvoiceDepends):
