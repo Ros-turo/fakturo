@@ -156,6 +156,12 @@ async def invoice_dashboard(uid: UserID):
 @router.get("/bulk_pdf_create", response_model= BulkPDFResponse)
 async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=1, max_length=50)],
                               uid: UserID, repo: InvoiceDepends):
+    # TODO (KISS/architecture): endpoint generuje PDF synchronně v request-response
+    # cyklu (asyncio.to_thread + gather), na rozdíl od invoice_to_pdf, který stejnou
+    # práci delegoval na Celery. Zvážit sjednocení na Celery vzor při SRP refaktoringu.
+    # TODO (security, minor): response obsahuje "Denied_id" se seznamem ID, která
+    # nepatří uživateli — potvrzuje existenci cizí faktury. Zvážit odstranění tohoto
+    # pole z response, logging warning stačí.
     tripped_id = set()
     coros = []
     invoice_generator = repo.get_invoices_by_id(uid, invoices_id)
