@@ -208,7 +208,7 @@ async def test_get_invoices_success_without_invoices(
     response_data, response_status_code = response_tuple(response)
 
     assert response_status_code == status.HTTP_200_OK
-    assert response_data == {"total":0, 'items': []}
+    assert response_data == []
 
 async def test_get_invoices_success_with_one_invoice(
         user_with_one_invoice: tuple[AsyncClient, int, int]
@@ -220,7 +220,7 @@ async def test_get_invoices_success_with_one_invoice(
     response_data, response_status_code = response_tuple(response)
 
     assert response_status_code == status.HTTP_200_OK
-    assert response_data["total"] == 1
+    assert len(response_data) == 1
 
 
 ## get_invoices_stats

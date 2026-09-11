@@ -1,9 +1,9 @@
 import asyncio
 import time
-from typing import Annotated
+from typing import Annotated, Sequence
 
 from celery import chain
-from fastapi import APIRouter, Body, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from starlette.background import BackgroundTasks
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -26,7 +26,6 @@ from schemas import (
     BulkPDFResponse,
     InvoiceByStatus,
     InvoiceCreate,
-    InvoiceListResponse,
     InvoiceResponse,
     InvoiceStats,
     OrderBy,
@@ -59,6 +58,7 @@ async def invoice_getter(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated
 
 GetterInvoice = Annotated[Invoice, Depends(invoice_getter)]
 
+#BL - Byznys logika?
 def draft_invoice_checker(invoice: GetterInvoice):
 
     if invoice.status == Status.draft:
@@ -67,6 +67,7 @@ def draft_invoice_checker(invoice: GetterInvoice):
 
 DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]
 
+#BL
 def valid_status_change(old_status: Status, new_status: Status):
 
     if not (new_status in STATUS_MAP[old_status]):
@@ -107,9 +108,9 @@ async def get_invoice_json(invoices):
                         .model_dump_json())
         yield invoice_json + " \n"
 
-@router.post("/create_invoice", response_model=InvoiceResponse, status_code=201, dependencies=[Depends(client_getter)])
+@router.post("/create_invoice", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(client_getter)])
 async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
-                   repo:InvoiceDepends, background_task: BackgroundTasks):
+                   repo:InvoiceDepends, background_task: BackgroundTasks) -> Invoice:
 
     uid = user["uid"]
     new_invoice = await repo.create_invoice(uid=uid, invoice=invoice_data)
@@ -117,8 +118,7 @@ async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
     return new_invoice
 
 
-
-@router.get("/", response_model=InvoiceListResponse)
+@router.get("/", response_model=Sequence[InvoiceResponse], status_code=status.HTTP_200_OK)
 async def get_invoices(
         user: CurrentUser,
         repo: InvoiceDepends,
@@ -175,8 +175,12 @@ async def invoice_dashboard(uid: UserID):
     }
 
 @router.get("/bulk_pdf_create", response_model= BulkPDFResponse)
-async def bulk_invoice_to_pdf(invoices_id: Annotated[set[int], Query(min_length=1, max_length=50)],
-                              uid: UserID, repo: InvoiceDepends):
+async def bulk_invoice_to_pdf(
+        invoices_id: Annotated[set[int],
+        Query(min_length=1, max_length=50)],
+        uid: UserID,
+        repo: InvoiceDepends
+):
     # TODO (KISS/architecture): endpoint generuje PDF synchronně v request-response
     # cyklu (asyncio.to_thread + gather), na rozdíl od invoice_to_pdf, který stejnou
     # práci delegoval na Celery. Zvážit sjednocení na Celery vzor při SRP refaktoringu.

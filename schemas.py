@@ -120,12 +120,6 @@ class InvoiceResponse(InvoiceBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-class InvoiceListResponse(BaseModel):
-    total: int
-    items: list[InvoiceResponse]
-
-    model_config = ConfigDict(from_attributes=True)
-
 class InvoiceByStatus(BaseModel):
     status: Status
     count: int

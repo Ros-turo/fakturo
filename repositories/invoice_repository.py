@@ -1,7 +1,7 @@
 from datetime import date
-from typing import Any, Generator, AsyncGenerator
+from typing import Any, Generator, AsyncGenerator, Sequence
 
-from sqlalchemy import RowMapping, func, select, update
+from sqlalchemy import RowMapping, Select, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
@@ -18,6 +18,48 @@ INVOICE_EAGER_OPTIONS = (
 
 
 class InvoiceRepo(BaseRepo):
+
+    @staticmethod
+    def filtering(
+            stmt: Select[Invoice],
+            client_id: int | None,
+            status: Status | None,
+    ) -> Select[Invoice]:
+
+
+        if not client_id is None:
+            stmt = stmt.where(Invoice.client_id == client_id)
+        if not status is None:
+            stmt = stmt.where(Invoice.status == status)
+        return stmt
+
+    @staticmethod
+    def pagination(
+            stmt: Select[Invoice],
+            limit: int | None,
+            offset: int
+    ) -> Select[Invoice]:
+
+        if not limit is None:
+            stmt = stmt.limit(limit)
+        return stmt.offset(offset)
+
+    @staticmethod
+    def order_by_logic(
+            stmt: Select[Invoice],
+            order_by: OrderBy | None,
+            order_dir: OrderDir | None,
+    ) -> Select[Invoice]:
+
+        if not order_by is None:
+            order = getattr(Invoice, order_by.value)
+            if not order_dir is None:
+                order = getattr(order, order_dir.value)()
+            stmt = stmt.order_by(order)
+        else:
+            stmt = stmt.order_by(Invoice.id.asc())
+
+        return stmt
 
     async def _invoice_exist_checker(self, invoice: Invoice) -> bool:
 
@@ -42,61 +84,43 @@ class InvoiceRepo(BaseRepo):
                                        .where(Invoice.id == invoice_in_db.id))
         return result.scalar_one() # Create and get invoice? SRP problem?
 
-    async def get_all_invoices(self, uid:int, client_id: int | None = None,
-                               order_by: OrderBy | None = None, order_dir: OrderDir | None = None,
-                               status: Status | None = None, limit: int | None = None, offset:int = 0) -> dict: # too much argument
+    async def get_all_invoices(
+            self,
+            uid:int,
+            client_id: int | None,
+            order_by: OrderBy | None,
+            order_dir: OrderDir | None,
+            status: Status | None,
+            limit: int | None,
+            offset:int
+    ) -> Sequence[Invoice]: # too much argument
         # -> new class? or classes? Separate to filter_where logic(client_id, status), pagination(limit, offset) and order_logic(order_by, order_dir)
-        items_stmt =(select(Invoice)
-               .options(selectinload(Invoice.invoice_items))
-               .where(Invoice.owner_id == uid)
-               .offset(offset)
-                     )
 
-        count_stmt =(select(func.count(Invoice.id))
-               .where(Invoice.owner_id == uid)
-               )
-        filters = [] # separate to new method
+        stmt = (select(Invoice).options(selectinload(Invoice.invoice_items)).where(Invoice.owner_id == uid))
+        stmt = self.filtering(stmt, client_id, status)
+        stmt = self.pagination(stmt, limit, offset)
+        stmt = self.order_by_logic(stmt, order_by, order_dir)
 
-        if not client_id is None:
-            filters.append(Invoice.client_id == client_id)
+        raw_result = await self.db.execute(stmt)
+        result = raw_result.scalars().all()
 
-        if not status is None:
-            filters.append(Invoice.status == status.value)
-
-        count_stmt = count_stmt.where(*filters)
-        count_result = await self.db.execute(count_stmt)
-
-        if not order_by is None: # Order by logic -> separate to new method
-            order = getattr(Invoice, order_by.value)
-            if not order_dir is None:
-                order = getattr(order, order_dir.value)()
-            items_stmt = items_stmt.order_by(order)
-        else:
-            items_stmt = items_stmt.order_by(Invoice.id.asc())
-
-        if not limit is None:
-            items_stmt = items_stmt.limit(limit)
-
-        items_stmt = items_stmt.where(*filters)
-        invoices_items_result = await self.db.execute(items_stmt)
-
-        return {
-            "total": count_result.scalar_one_or_none(),
-            "items": invoices_items_result.scalars().all()
-        }
+        return result
 
     async def a_get_all_invoices(self, uid: int) -> AsyncGenerator[Invoice, None]:
-        result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid)
-                                      .options(*INVOICE_EAGER_OPTIONS))
+        result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid).options(*INVOICE_EAGER_OPTIONS))
         invoices = result.scalars()
         async for invoice in invoices:
             yield invoice
 
     async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
-        invoice_result = await self.db.execute(select(Invoice)
-                                               .options(*INVOICE_EAGER_OPTIONS)
-                                               .where(Invoice.id == invoice_id,
-                                                      Invoice.owner_id == uid))
+        invoice_result = await self.db.execute(
+            select(Invoice)
+            .options(*INVOICE_EAGER_OPTIONS)
+            .where(
+                Invoice.id == invoice_id,
+                Invoice.owner_id == uid
+            )
+        )
         invoice = invoice_result.scalar_one_or_none()
         return invoice
 
