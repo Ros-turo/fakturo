@@ -141,6 +141,16 @@ class InvoiceStats(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class OrderQuery(BaseModel):
+
+    order_by: OrderBy | None
+    order_dir: OrderDir | None
+
+class PaginationQuery(BaseModel):
+
+    limit: int | None
+    offset: int = 0
+
 class UserCreate(BaseModel):
 
     password: Annotated[str, Field(min_length=8)]

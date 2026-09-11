@@ -31,6 +31,8 @@ from schemas import (
     InvoiceStats,
     OrderBy,
     OrderDir,
+    OrderQuery,
+    PaginationQuery,
     Status,
 )
 
@@ -70,6 +72,23 @@ def valid_status_change(old_status: Status, new_status: Status):
     if not (new_status in STATUS_MAP[old_status]):
         raise InvalidStatusChangeError(from_status=old_status, to_status=new_status)
 
+def pagination_query(
+        limit: Annotated[int | None, Query()] = None,
+        offset: Annotated[int, Query()] = 0
+) -> PaginationQuery:
+    return PaginationQuery(limit=limit, offset=offset)
+
+PagDepends = Annotated[PaginationQuery, Depends(pagination_query)]
+
+def order_query(
+        order_by: Annotated[OrderBy | None, Query()] = None,
+        order_dir: Annotated[OrderDir | None, Query()] = None,
+) -> OrderQuery:
+    return OrderQuery(order_by=order_by, order_dir=order_dir)
+
+OrderQueryDepends = Annotated[OrderQuery, Depends(order_query)]
+
+
 # Background tasks
 
 def notify_invoice_created(invoice_number):
@@ -97,23 +116,25 @@ async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
     background_task.add_task(notify_invoice_created, new_invoice.invoice_number)
     return new_invoice
 
+
+
 @router.get("/", response_model=InvoiceListResponse)
-async def get_invoices(user: CurrentUser, repo: InvoiceDepends,
-                       client_id: Annotated[int | None, Query()] = None,
-                       order_by: Annotated[OrderBy | None, Query()] = None,
-                       order_dir: Annotated[OrderDir | None, Query()] = None,
-                       status: Annotated[Status | None, Query()] = None,
-                       limit: Annotated[int | None, Query(gt=0)] = None,
-                       offset: Annotated[int, Query()] = 0
-                       ):
+async def get_invoices(
+        user: CurrentUser,
+        repo: InvoiceDepends,
+        pagination: PagDepends,
+        order: OrderQueryDepends,
+        client_id: Annotated[int | None, Query()] = None,
+        status: Annotated[Status | None, Query()] = None,
+):
     uid = user["uid"]
     responses = await repo.get_all_invoices(uid=uid,
                                             client_id=client_id,
-                                            order_by=order_by,
-                                            order_dir=order_dir,
+                                            order_by=order.order_by,
+                                            order_dir=order.order_dir,
                                             status=status,
-                                            limit=limit,
-                                            offset=offset)
+                                            limit=pagination.limit,
+                                            offset=pagination.offset)
     return responses
 
 @router.get("/stats", response_model=InvoiceStats)
