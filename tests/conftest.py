@@ -13,7 +13,7 @@ from routers.auth import get_current_user
 from security.rate_limit import attempt_logger
 
 @pytest.fixture(scope="function")
-def user_data():
+def user_data() -> dict[str,str]:
     return {
         "password": "stringst",
         "email": "user@example.com",
