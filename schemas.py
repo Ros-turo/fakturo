@@ -142,7 +142,7 @@ class OrderQuery(BaseModel):
 
 class PaginationQuery(BaseModel):
 
-    limit: int | None
+    limit: Annotated[int | None, Field(gt=0)] = None
     offset: int = 0
 
 class UserCreate(BaseModel):
