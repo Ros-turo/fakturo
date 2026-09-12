@@ -17,17 +17,17 @@ jobs:
         steps:
             - name: Copy code
               uses: actions/checkout@v7
-            - name: Setup python
-              uses: actions/setup-python@v5
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
               with:
                 python-version: ${{ env.P_VER }}
             - name: Cache
               uses: actions/cache@v4
               with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+                  path: ~/.cache/uv
+                  key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
             - name: Install dependencies
-              run: pip install -r requirements.txt
+              run: uv sync
             - name: Run mypy
               run: mypy .
 
@@ -62,17 +62,17 @@ jobs:
         steps:
             - name: Copy code
               uses: actions/checkout@v7
-            - name: Setup python
-              uses: actions/setup-python@v5
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
               with:
-                  python-version: ${{ env.P_VER }}
+                python-version: ${{ env.P_VER }}
             - name: Cache
               uses: actions/cache@v4
               with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+                  path: ~/.cache/uv
+                  key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
             - name: Install dependencies
-              run: pip install -r requirements.txt
+              run: uv sync
             - name: Run test
               env:
                   test_db_url: postgresql+asyncpg://testuser:testpass@localhost:5432/fakturo_test

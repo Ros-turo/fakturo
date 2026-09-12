@@ -17,6 +17,7 @@ services:
       - .env.db
     volumes:
       - postgres_store:/var/lib/postgresql/data
+      - ./init_test_db.sql:/docker-entrypoint-initdb.d/init_test_db.sql
 
   redis:
     image: redis:7
