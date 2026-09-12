@@ -8,7 +8,8 @@ from database import DBSession
 from db_models import Client
 from exceptions import ClientNotFoundError
 from repositories.client_repository import ClientRepo
-from routers.auth import CurrentUser
+from repositories.interfaces import ClientCRUD, ClientListing
+from routers.auth import CurrentUser, UserID
 from schemas import ClientAres, ClientCreate, ClientResponse
 
 router = APIRouter(prefix='/clients', tags=['clients'])
@@ -17,7 +18,30 @@ router = APIRouter(prefix='/clients', tags=['clients'])
 def get_client_repo(db: DBSession)-> ClientRepo:
     return ClientRepo(db)
 
-ClientDepends = Annotated[ClientRepo, Depends(get_client_repo)]
+ClientCRUDDepends = Annotated[ClientCRUD, Depends(get_client_repo)]
+ClientListingDepends = Annotated[ClientListing, Depends(get_client_repo)]
+
+
+async def client_getter(client_id:int, client_repo: ClientCRUD, uid: UserID) -> Client:
+    client = await client_repo.get_one_client(uid=uid, client_id=client_id)
+    if client is None:
+        raise ClientNotFoundError(client_id=client_id)
+    return client
+
+ClientGetDepends = Annotated[Client, Depends(client_getter)]
+
+
+async def create_client_composition(
+    uid: UserID, data: ClientCreate, repo: ClientCRUDDepends
+) -> Client:
+
+    client = Client(**data.model_dump(), owner_id=uid)
+    created_client = await repo.create_client(client)
+
+    return created_client
+
+ClientCreateDepends = Annotated[Client, Depends(create_client_composition)]
+
 
 def ares_parsing(data:dict):
     dic = data.get("dic",None)
@@ -46,13 +70,13 @@ async def get_ico(ico: Annotated[str, Path(pattern=r'\d{8}')], user: CurrentUser
     return new_client
 
 @router.get('/', response_model=list[ClientResponse])
-async def get_clients(user: CurrentUser, repo: ClientDepends):
+async def get_clients(user: CurrentUser, repo: ClientListingDepends):
     uid = user["uid"]
     clients: list[Client] = await repo.get_all_clients(uid)
     return clients
 
 @router.get('/{client_id}', response_model=ClientResponse)
-async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
+async def get_client(client_id: int, user: CurrentUser, repo: ClientCRUDDepends):
     uid = user['uid']
     key = f"user_{uid}:clients:{client_id}"
 
@@ -61,7 +85,7 @@ async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
         client_data = ClientResponse.model_validate_json(json_data=cache_try)
         return client_data
 
-    client: Client | None = await repo.get_one_client(uid=uid, client_id=client_id)
+    client = await repo.get_one_client(uid=uid, client_id=client_id)
     if not client:
         raise ClientNotFoundError(client_id=client_id)
 
@@ -71,30 +95,28 @@ async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
 
     return response
 
+
 @router.post('/', response_model=ClientResponse, status_code=201)
-async def create_client(client: ClientCreate, user: CurrentUser,
-                  repo: ClientDepends):
+async def create_client(
+        client: ClientCreateDepends,
+        uid: UserID,
+):
 
-    uid = user['uid']
-    new_client = Client(**client.model_dump(),
-                        owner_id=uid)
-
-    created_client = await repo.create_client(new_client)
-    response = ClientResponse.model_validate(created_client)
-    client_id = created_client.id
+    response = ClientResponse.model_validate(client)
     cache_client = response.model_dump_json()
-    key = f"user_{uid}:clients:{client_id}"
+    key = f"user_{uid}:clients:{client.id}"
     await set_cache(key=key, value=cache_client, ttl=600)
 
     return response
 
 @router.delete("/{client_id}", status_code=204)
-async def delete_client(client_id: int, user:CurrentUser, repo: ClientDepends):
+async def delete_client(client_id: int, user:CurrentUser, repo: ClientCRUDDepends):
     uid = user["uid"]
 
-    client = await repo.delete_client(uid=uid, client_id=client_id)
+    client = await repo.get_one_client(uid=uid, client_id=client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Not found")
+    await repo.delete_client(client)
 
     key = f"user_{uid}:clients:{client_id}"
     await delete_cache(key=key)

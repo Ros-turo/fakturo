@@ -14,13 +14,13 @@ from exceptions import (
     InvalidStatusChangeError,
     InvoiceConflict,
     InvoiceDeleteError,
-    InvoiceNotFoundError, ClientNotFoundError,
+    InvoiceNotFoundError,
 )
 from logging_config import logger
 from pdf import invoice_pdf
 from repositories.invoice_repository import InvoiceRepo
 from routers.auth import CurrentActiveUser, CurrentUser, SecurityID, UserID
-from routers.clients import ClientDepends
+from routers.clients import ClientCRUDDepends, client_getter
 from schemas import (
     STATUS_MAP,
     BulkPDFResponse,
@@ -43,12 +43,11 @@ def get_invoice_repo(db: DBSession):
 
 InvoiceDepends = Annotated[InvoiceRepo, Depends(get_invoice_repo)]
 
-async def client_getter(client_repo: ClientDepends, uid: UserID, invoice_data: InvoiceCreate ) -> Client:
+async def is_user_has_client(client_repo: ClientCRUDDepends, uid: UserID, invoice_data: InvoiceCreate) -> bool:
     client_id = invoice_data.client_id
-    client = await client_repo.get_one_client(uid=uid, client_id=client_id)
-    if client is None:
-        raise ClientNotFoundError(client_id=client_id)
-    return client
+    await client_getter(client_id = client_id, client_repo = client_repo, uid = uid)
+    return True
+
 
 async def invoice_getter(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
     invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
@@ -58,7 +57,7 @@ async def invoice_getter(repo:InvoiceDepends, uid: UserID, invoice_id: Annotated
 
 GetterInvoice = Annotated[Invoice, Depends(invoice_getter)]
 
-#BL - Byznys logika?
+# BL - Byznys logika?
 def draft_invoice_checker(invoice: GetterInvoice):
 
     if invoice.status == Status.draft:
@@ -67,7 +66,7 @@ def draft_invoice_checker(invoice: GetterInvoice):
 
 DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]
 
-#BL
+# BL
 def valid_status_change(old_status: Status, new_status: Status):
 
     if not (new_status in STATUS_MAP[old_status]):
@@ -108,7 +107,7 @@ async def get_invoice_json(invoices):
                         .model_dump_json())
         yield invoice_json + " \n"
 
-@router.post("/create_invoice", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(client_getter)])
+@router.post("/create_invoice", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(is_user_has_client)])
 async def create_invoice(user: CurrentUser, invoice_data: InvoiceCreate,
                    repo:InvoiceDepends, background_task: BackgroundTasks) -> Invoice:
 
@@ -264,5 +263,3 @@ async def delete_draft_invoice(s_uid: SecurityID, invoice: DraftChecker,
         status_code=200,
         content = {"detail": " Invoice is deleted"}
     )
-
-

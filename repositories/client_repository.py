@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -16,24 +18,18 @@ class ClientRepo(BaseRepo):
         client = await self.db.execute(select(Client).where(Client.id ==client_id, Client.owner_id == uid))
         return client.scalar_one_or_none()
 
-    async def create_client(self, new_client: Client) -> Client:
+    async def create_client(self, client: Client) -> Client:
 
-        self.db.add(new_client)
+        self.db.add(client)
         await self.db.commit()
-        await self.db.refresh(new_client)
+        await self.db.refresh(client)
 
-        return new_client
+        return client
 
-    async def update_client_name(self, uid:int, client_id:int, new_client_name: str) -> Client | None:
+    async def update_client(self, client: Client, new_value: tuple[str, Any]) -> Client:
 
-        stmt = select(Client).where(Client.owner_id == uid, Client.id == client_id)
-        client = (await self.db.execute(stmt)).scalar_one_or_none()
-
-        if client is None:
-            return None
-
-        client.name = new_client_name
-
+        key, value = new_value
+        setattr(client, key, value)
         try:
             await self.db.commit()
         except StaleDataError:
@@ -41,11 +37,6 @@ class ClientRepo(BaseRepo):
             raise ValueError("This client version is deprecated")
         return client
 
-    async def delete_client(self, uid:int, client_id: int) -> Client | None:
-        result = await self.db.execute(select(Client).where(Client.id == client_id,
-                                                              Client.owner_id == uid))
-        client = result.scalar_one_or_none()
-        if client:
-            await self.db.delete(client)
-            await self.db.commit()
-        return client
+    async def delete_client(self, client: Client) -> None:
+        await self.db.delete(client)
+        await self.db.commit()
