@@ -1,9 +1,22 @@
 from datetime import datetime
 from typing import Any, AsyncGenerator, Protocol
 
-from db_models import Invoice
+from db_models import Invoice, Client
 from schemas import InvoiceCreate, Status, InvoiceByStatus, OrderBy, OrderDir
 
+class ClientCRUD(Protocol):
+
+    async def get_one_client(self, uid: int, client_id: int) -> Client | None: ...
+
+    async def create_client(self, client: Client) -> Client: ...
+
+    async def update_client(self, client: Client, new_value: tuple[str, Any]) -> Client: ...
+
+    async def delete_client(self, client: Client) -> None: ...
+
+class ClientListing(Protocol):
+
+    async def get_all_clients(self, uid: int) -> list[Client]: ...
 
 class InvoiceCRUD(Protocol):
 
