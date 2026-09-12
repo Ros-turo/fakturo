@@ -10,8 +10,8 @@ from database import engine
 from middleware import TimingLoggingMiddleware, CORSMiddleware
 from routers import clients, auth, invoices
 from sockets import wbs
-from exceptions import AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
-from exception_handlers import (business_rule_handler, conflict_handler, invalid_credentials_handler,
+from exceptions import ARESICONotFoundError, ARESNotAvailableError, AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
+from exception_handlers import (ares_not_available_handler, business_rule_handler, conflict_handler, invalid_credentials_handler,
                                 not_found_handler, cant_delete_handler)
 
 
@@ -48,6 +48,7 @@ app.add_exception_handler(AuthError, invalid_credentials_handler) #  type: ignor
 app.add_exception_handler(FakturoDeleteError, cant_delete_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
 app.add_exception_handler(FakturoConflictError, conflict_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
 app.add_exception_handler(BusinessRuleError, business_rule_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
+app.add_exception_handler(ARESNotAvailableError, ares_not_available_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
 
 @app.get('/')
 def info():

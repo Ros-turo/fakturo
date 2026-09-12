@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from cache import delete_cache, get_cache, set_cache
 from database import DBSession
 from db_models import Client
-from exceptions import ClientNotFoundError
+from exceptions import ARESICONotFoundError, ARESNotAvailableError, ClientNotFoundError
 from repositories.client_repository import ClientRepo
 from repositories.interfaces import ClientCRUD, ClientListing
-from routers.auth import CurrentUser, UserID
+from routers.auth import CurrentUser, UserID, get_current_user
 from schemas import ClientAres, ClientCreate, ClientResponse
 
 router = APIRouter(prefix='/clients', tags=['clients'])
@@ -57,15 +57,15 @@ def ares_parsing(data:dict):
             "house_number":house_number}
 
 
-@router.get('/ares/{ico}', response_model=ClientAres)
-async def get_ico(ico: Annotated[str, Path(pattern=r'\d{8}')], user: CurrentUser):
+@router.get('/ares/{ico}', response_model=ClientAres, dependencies=[Depends(get_current_user)])
+async def get_ico(ico: Annotated[str, Path(pattern=r'\d{8}')]):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f'https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/{ico}')
         except httpx.RequestError:
-            raise HTTPException(status_code=503, detail="ARES neni dostupny")
+            raise ARESNotAvailableError()
     if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="IČO nenalezeno")
+        raise ARESICONotFoundError()
     new_client = ClientAres(**ares_parsing(response.json()))
     return new_client
 

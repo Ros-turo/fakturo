@@ -89,6 +89,11 @@ class DeviceNotFoundError(FakturoNotFoundError):
     def __init__(self) -> None:
         super().__init__(resource_name="Device")
 
+class ARESICONotFoundError(FakturoNotFoundError):
+
+    def __init__(self) -> None:
+        super().__init__(resource_name="ARES ICO")
+
 
 
 class FakturoDeleteError(Exception):
@@ -139,3 +144,6 @@ class InvoiceNotFound(CeleryError):
         self.invoice_id = invoice_id
         self.uid = uid
         super().__init__(f"Failed to find invoice: {invoice_id} for user: {uid}")
+
+class ARESNotAvailableError(Exception):
+    pass

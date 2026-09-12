@@ -1,6 +1,9 @@
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
+
+from exceptions import ARESICONotFoundError
 from main import app
 from routers.auth import get_current_user
+import pytest
 
 async def test_empty_clients_list(user):
 
@@ -144,6 +147,24 @@ async def test_get_ico_success(user):
         response = await user.get("/clients/ares/12345678")
 
     assert response.status_code == 200
+
+async def test_get_ico_not_found(user):
+    fake_response = Mock()
+    fake_response.status_code = 404
+
+    mock_client = Mock()
+    mock_client.get = AsyncMock(return_value = fake_response)
+
+    mock_httpx_client_instance = AsyncMock()
+    mock_httpx_client_instance.__aenter__ = AsyncMock(return_value=mock_client)
+
+    mock_httpx_client_class = MagicMock(return_value=mock_httpx_client_instance)
+
+
+    with patch("routers.clients.httpx.AsyncClient", mock_httpx_client_class):
+        response = await user.get("/clients/ares/12345678")
+
+    assert response.status_code == 404
 
 
 async def test_get_ico_unauthorized(unauthorized_user):

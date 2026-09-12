@@ -1,7 +1,7 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from exceptions import AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
+from exceptions import ARESNotAvailableError, AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
 
 
 def invalid_credentials_handler(request: Request, exc: AuthError) -> JSONResponse:
@@ -41,4 +41,12 @@ def business_rule_handler(request: Request, exc: BusinessRuleError):
             "rule_name": exc.rule,
             "detail": exc.detail
         }
+    )
+
+def ares_not_available_handler(request: Request, exc: ARESNotAvailableError) -> JSONResponse:
+
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail":"Ares not available"}
     )
