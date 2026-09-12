@@ -117,7 +117,7 @@ async def test_delete_client_ownership_isolation(user_with_one_client, _base_use
     data = response.json()
 
     assert status_code == 404
-    assert data == {"detail": "Not found"}
+    assert "not found" in data["detail"].lower()
 
 
     client_exist = await user.get(f"/clients/{client_id}")
