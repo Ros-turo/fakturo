@@ -43,11 +43,11 @@ app.include_router(wbs)
 
 
 # Exceptions
-app.add_exception_handler(FakturoNotFoundError, not_found_handler)  # pyright: ignore [reportArgumentType]
-app.add_exception_handler(AuthError, invalid_credentials_handler)  # pyright: ignore [reportArgumentType]
-app.add_exception_handler(FakturoDeleteError, cant_delete_handler)  # pyright: ignore [reportArgumentType]
-app.add_exception_handler(FakturoConflictError, conflict_handler)  # pyright: ignore [reportArgumentType]
-app.add_exception_handler(BusinessRuleError, business_rule_handler)  # pyright: ignore [reportArgumentType]
+app.add_exception_handler(FakturoNotFoundError, not_found_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
+app.add_exception_handler(AuthError, invalid_credentials_handler) #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
+app.add_exception_handler(FakturoDeleteError, cant_delete_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
+app.add_exception_handler(FakturoConflictError, conflict_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
+app.add_exception_handler(BusinessRuleError, business_rule_handler)  #  type: ignore[arg-type] # pyright: ignore [reportArgumentType]
 
 @app.get('/')
 def info():

@@ -1,4 +1,4 @@
-from typing import Any, Generator, AsyncGenerator
+from typing import Any, Generator, AsyncGenerator, cast
 from unittest.mock import patch
 
 import pytest
@@ -129,4 +129,4 @@ async def register_and_switch_to_new_user(user: AsyncClient,
     new_user = await user.post("/auth/register", json=new_user_data)
     new_user_id = new_user.json()["UID"]
     app.dependency_overrides[get_current_user] = lambda: {"uid": new_user_id}
-    return new_user_id
+    return cast(int, new_user_id)

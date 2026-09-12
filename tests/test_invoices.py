@@ -1,6 +1,6 @@
 from datetime import datetime, date, timedelta
 from operator import attrgetter
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 from fastapi import status
@@ -39,7 +39,7 @@ async def ownership_helper(
         response = await request(url, params=params)
     finally:
         app.dependency_overrides[get_current_user] = original_override_user
-    return response
+    return cast(Response, response)
 
 def test_get_invoice_repo(db:AsyncSession) -> None:
     repo = get_invoice_repo(db)
@@ -84,7 +84,7 @@ async def user_with_one_invoice(
     return user, client_id, invoice_id
 
 
-#POST
+# POST
 
 ## create_invoice
 
@@ -158,7 +158,7 @@ async def test_invoice_to_pdf_not_found(
     assert response_data == {"detail": "Invoice 999999 is not found"}
     assert response_status_code == 404
 
-#GET
+# GET
 ## get_one_invoice
 
 async def test_get_one_invoice_success(
@@ -379,6 +379,3 @@ async def test_delete_non_draft_invoice(
 
     assert delete_status_code == status.HTTP_405_METHOD_NOT_ALLOWED
     assert delete_response_data == {"detail": f"Invoice: Not allowed to delete invoices that was sent already "}
-
-
-
