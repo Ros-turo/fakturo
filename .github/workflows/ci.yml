@@ -79,4 +79,4 @@ jobs:
                   DB_URL: ${{ secrets.DB_URL }}
                   SECRET_KEY: ${{ secrets.SECRET_KEY }}
                   redis_host: localhost
-              run: pytest
+              run: uv run pytest
