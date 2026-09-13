@@ -4,11 +4,11 @@ from sqlalchemy import select
 from sqlalchemy.orm.exc import StaleDataError
 
 from db_models import Client
+from exceptions import VersionDeprecationError
 from repositories.base_repository import BaseRepo
 
 
 class ClientRepo(BaseRepo):
-
 
     async def get_all_clients(self, uid: int)-> list[Client]:
         clients = await self.db.execute(select(Client).where(Client.owner_id == uid))
@@ -34,7 +34,7 @@ class ClientRepo(BaseRepo):
             await self.db.commit()
         except StaleDataError:
             await self.db.rollback()
-            raise ValueError("This client version is deprecated")
+            raise VersionDeprecationError(resource_name="Client")
         return client
 
     async def delete_client(self, client: Client) -> None:

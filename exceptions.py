@@ -121,6 +121,11 @@ class InvoiceConflict(FakturoConflictError):
         super().__init__(resource_name="Invoice", exc_detail=exc_detail)
 
 
+class VersionDeprecationError(FakturoConflictError):
+
+    def __init__(self, resource_name: str) -> None:
+        super().__init__(resource_name, exc_detail=f"Version of {resource_name} is deprecated")
+
 
 class BusinessRuleError(Exception):
 
@@ -147,3 +152,6 @@ class InvoiceNotFound(CeleryError):
 
 class ARESNotAvailableError(Exception):
     pass
+
+
+

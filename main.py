@@ -1,5 +1,3 @@
-from starlette.requests import Request
-from fastapi.responses import JSONResponse
 from logging_config import logger
 from contextlib import asynccontextmanager
 
@@ -10,7 +8,7 @@ from database import engine
 from middleware import TimingLoggingMiddleware, CORSMiddleware
 from routers import clients, auth, invoices
 from sockets import wbs
-from exceptions import ARESICONotFoundError, ARESNotAvailableError, AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
+from exceptions import ARESNotAvailableError, AuthError,  FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
 from exception_handlers import (ares_not_available_handler, business_rule_handler, conflict_handler, invalid_credentials_handler,
                                 not_found_handler, cant_delete_handler)
 

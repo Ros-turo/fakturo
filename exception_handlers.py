@@ -1,4 +1,4 @@
-from fastapi import Request
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 from exceptions import ARESNotAvailableError, AuthError, FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
