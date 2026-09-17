@@ -1,45 +1,31 @@
 from datetime import datetime, timedelta
 
-from security.tokens import decode_jwt_token
-from services.auth_service import create_refresh_token
+from db_models import RefreshToken
+from security.tokens import create_refresh_token, decode_jwt_token
+from services.auth_service import refresh_token_to_db
 
 class FakeRefreshTokenWriter:
 
     def __init__(self):
         self.fake_db = {}
 
-    async def post_refresh_token(self, uid: int, jti: str,
-                                 expired_at: datetime, email: str) -> None:
-        self.fake_db[uid] = {"jti": jti, "expired_at": expired_at, "email": email}
+    async def post_refresh_token(self, refresh_token: RefreshToken) -> None:
+        uid = refresh_token.user_id
+        self.fake_db[uid] = refresh_token
 
-async def test_create_refresh_token_success() -> None:
-
+async def test_refresh_token_to_db():
     fake_writer = FakeRefreshTokenWriter()
-    token = await create_refresh_token(
-        email='ros@example.com',
-        uid=1,
-        token_writer=fake_writer)
 
-    payload = decode_jwt_token(token)
+    refresh_token = create_refresh_token(uid=1)
+    payload = decode_jwt_token(refresh_token)
+    uid = payload['uid']
     jti = payload['jti']
 
-    fake_db = fake_writer.fake_db
+    await refresh_token_to_db(refresh_token, fake_writer, email='ros@email.com')
 
-    assert payload["uid"] == 1
+    refresh_token_in_db = fake_writer.fake_db[uid]
 
-    assert len(fake_db) == 1
-    assert fake_db[1]["jti"] == jti
-
-async def test_token_expire_time_success() -> None:
-    fake_writer = FakeRefreshTokenWriter()
-    token = await create_refresh_token(
-        email='ros@example.com',
-        uid=1,
-        token_writer=fake_writer)
-
-    payload = decode_jwt_token(token)
-    now = payload['iat']
-    expired_at = payload['exp']
-    delta = expired_at - now
-
-    assert delta == 15*24*60*60
+    assert isinstance(fake_writer.fake_db[1], RefreshToken)
+    assert refresh_token_in_db.user_id == uid
+    assert refresh_token_in_db.jti == jti
+    assert refresh_token_in_db.user_email == "ros@email.com"

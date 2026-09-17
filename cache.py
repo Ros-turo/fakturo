@@ -1,8 +1,5 @@
-import time
-
 import redis.asyncio as redis
 from typing import cast
-from jose import jwt, JWTError
 
 from settings import settings
 
@@ -23,18 +20,6 @@ async def delete_cache(key:str) -> int:
     response = await r.delete(key)
     return response
 
-async def add_token_to_blacklist(token:str) -> None:
-
-    try:
-        payload = jwt.decode(token, settings.secret_key, settings.algorithm)
-    except JWTError:
-        return None
-    jti = payload['jti']
-    exp = payload['exp']
-    ttl = int(exp - time.time())
-    if ttl > 0:
-        await r.set(f'blacklist:{jti}', 1, ex = ttl)
-    return None
 
 async def is_token_in_blacklist(jti:str) -> bool:
 

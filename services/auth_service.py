@@ -1,37 +1,41 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+import time
 from typing import Annotated, Any
-from secrets import token_urlsafe
 from fastapi import Depends, Request
 
-from cache import add_token_to_blacklist
-from exceptions import RefreshTokenNotFoundError
+from cache import set_cache
+from db_models import RefreshToken
+from exceptions import RefreshTokenNotFoundError, InvalidTokenError
 from repositories.interfaces import RefreshTokenWriter
-from security.tokens import AccessTokenExtractor, decode_jwt_token, encode_jwt_token, create_access_token
+from security.tokens import AccessTokenExtractor, create_refresh_token, decode_jwt_token,  create_access_token
 
 
-async def create_refresh_token(email: str, uid: int, token_writer: RefreshTokenWriter) -> str:
-    now = datetime.now(timezone.utc)
-    expire_time = now + timedelta(days=15)
-    jti = token_urlsafe(32)
-    payload = {
-        'uid': uid,
-        'jti': jti,
-        'iat': now,
-        'exp': expire_time,
-        'type': 'refresh'
-    }
+async def refresh_token_to_db(
+        refresh_token:str,
+        token_writer:RefreshTokenWriter,
+        email:str,
+) -> None:
+    payload = decode_jwt_token(refresh_token)
+    jti = payload['jti']
+    user_id = payload['uid']
+    expired_at = datetime.fromtimestamp(float(payload['exp']), tz=timezone.utc)
 
-    token = encode_jwt_token(payload)
+    refresh_token_db_instance = RefreshToken(
+        jti=jti,
+        user_id=user_id,
+        user_email=email,
+        expired_at=expired_at,
+    )
 
-    await token_writer.post_refresh_token(uid=uid, email=email,
-                                          jti=jti, expired_at=expire_time)
+    await token_writer.post_refresh_token(refresh_token_db_instance)
 
-    return token
 
 async def create_token_tuple(email:str, uid: int, token_writer: RefreshTokenWriter) -> tuple[str,str]:
 
     access_token = create_access_token(email=email, uid=uid)
-    refresh_token = await create_refresh_token(email=email, uid=uid, token_writer=token_writer)
+    refresh_token = create_refresh_token(uid=uid)
+    await refresh_token_to_db(refresh_token, token_writer,email=email)
+
 
     return access_token, refresh_token
 
@@ -52,3 +56,17 @@ def get_refresh_token_payload(request:Request) -> dict [str, Any]:
     payload = decode_jwt_token(token)
 
     return payload
+
+
+async def add_token_to_blacklist(token:str) -> None:
+
+    try:
+        payload = decode_jwt_token(token)
+    except InvalidTokenError:
+        return None
+    jti = payload['jti']
+    exp = payload['exp']
+    ttl = int(exp - time.time())
+    if ttl > 0:
+        await set_cache(key=f'blacklist:{jti}', value="1", ttl=ttl)
+    return None

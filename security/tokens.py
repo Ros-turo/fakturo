@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
+from secrets import token_urlsafe
 from uuid import uuid4
 from typing import Annotated, Any
 from jose import jwt, JWTError
-from fastapi import Request, Depends, HTTPException
+from fastapi import Request, Depends
 
 from exceptions import InvalidTokenError, ExpiredTokenError, RevokedTokenError
 from settings import settings
@@ -37,6 +38,22 @@ def create_access_token(email:str, uid:int) -> str:
         'iat': now,
         'exp': expire_time,
         'type': 'access'
+    }
+
+    return encode_jwt_token(payload)
+
+def create_refresh_token(
+        uid:int
+) -> str:
+    now = datetime.now(timezone.utc)
+    expire_time = now + timedelta(days=15)
+    jti = token_urlsafe(32)
+    payload = {
+        'uid': uid,
+        'jti': jti,
+        'iat': now,
+        'exp': expire_time,
+        'type': 'refresh'
     }
 
     return encode_jwt_token(payload)

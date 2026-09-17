@@ -1,7 +1,6 @@
-from datetime import datetime
 from typing import Any, AsyncGenerator, Protocol
 
-from db_models import Invoice, Client
+from db_models import Invoice, Client, RefreshToken
 from schemas import ClientUpdate, InvoiceCreate, Status, InvoiceByStatus, OrderBy, OrderDir
 
 class ClientCRUD(Protocol):
@@ -56,5 +55,4 @@ class InvoiceBatch(Protocol):
 
 class RefreshTokenWriter(Protocol):
 
-    async def post_refresh_token(self, uid: int, jti: str,
-                                 expired_at: datetime, email: str) -> None: ...
+    async def post_refresh_token(self, refresh_token: RefreshToken) -> None: ...

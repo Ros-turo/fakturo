@@ -15,16 +15,9 @@ class AuthRepo(BaseRepo):
 
         return token_data.scalar_one_or_none()
 
-    async def post_refresh_token(self, uid: int, jti: str,
-                                 expired_at: datetime, email: str) -> None:
+    async def post_refresh_token(self, refresh_token: RefreshToken) -> None:
 
-        token_data = RefreshToken(
-            jti = jti,
-            expired_at = expired_at,
-            user_id = uid,
-            user_email = email
-        )
-        self.db.add(token_data)
+        self.db.add(refresh_token)
         await self.db.commit()
 
 
