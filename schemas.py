@@ -61,6 +61,17 @@ class ClientResponse(ClientCreate):
 
     id: int
 
+class ClientUpdate(BaseModel):
+
+    name: str | None = None
+    dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
+    city: str | None = None
+    psc: str | None = None
+    street: str | None = None
+    house_number: str | None = None
+    email: EmailStr | None = None
+    phone_number: Annotated[str | None, Field(pattern=r"^\d{9}$")] = None
+
 class InvoiceItemCreate(BaseModel):
 
     description: str

@@ -11,7 +11,7 @@ from exceptions import ARESICONotFoundError, ARESNotAvailableError, ClientNotFou
 from repositories.client_repository import ClientRepo
 from repositories.interfaces import ClientCRUD, ClientListing
 from routers.auth import UserID, get_current_user
-from schemas import ClientAres, ClientCreate, ClientResponse
+from schemas import ClientAres, ClientCreate, ClientResponse, ClientUpdate
 from services.client_service import client_cache_deleter, client_cache_getter, client_cache_setter, ares_parsing
 
 router = APIRouter(prefix='/clients', tags=['clients'])
@@ -101,6 +101,20 @@ async def create_client(
     await client_cache_setter(client=response, uid=uid, ttl=600)
 
     return response
+
+@router.patch("/{client_id}", response_model=ClientResponse, status_code=status.HTTP_200_OK)
+async def update_client(
+        client: ClientGetDepends,
+        client_repo: ClientCRUDDepends,
+        new_value: ClientUpdate,
+        uid: UserID,
+) -> ClientResponse:
+
+    raw_updated_client = await client_repo.update_client(client=client, new_value=new_value)
+    updated_client = ClientResponse.model_validate(raw_updated_client)
+    await client_cache_setter(client=updated_client, uid=uid, ttl=600)
+    return updated_client
+
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_client(

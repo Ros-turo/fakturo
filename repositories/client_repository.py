@@ -6,7 +6,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from db_models import Client
 from exceptions import VersionDeprecationError
 from repositories.base_repository import BaseRepo
-
+from schemas import ClientUpdate
 
 class ClientRepo(BaseRepo):
 
@@ -26,10 +26,11 @@ class ClientRepo(BaseRepo):
 
         return client
 
-    async def update_client(self, client: Client, new_value: tuple[str, Any]) -> Client:
+    async def update_client(self, client: Client, new_value: ClientUpdate) -> Client:
 
-        key, value = new_value
-        setattr(client, key, value)
+        data = new_value.model_dump(exclude_none=True)
+        for key, value in data.items():
+            setattr(client, key, value)
         try:
             await self.db.commit()
         except StaleDataError:

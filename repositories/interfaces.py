@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, AsyncGenerator, Protocol
 
 from db_models import Invoice, Client
-from schemas import InvoiceCreate, Status, InvoiceByStatus, OrderBy, OrderDir
+from schemas import ClientUpdate, InvoiceCreate, Status, InvoiceByStatus, OrderBy, OrderDir
 
 class ClientCRUD(Protocol):
 
@@ -10,7 +10,7 @@ class ClientCRUD(Protocol):
 
     async def create_client(self, client: Client) -> Client: ...
 
-    async def update_client(self, client: Client, new_value: tuple[str, Any]) -> Client: ...
+    async def update_client(self, client: Client, new_value: ClientUpdate) -> Client: ...
 
     async def delete_client(self, client: Client) -> None: ...
 
