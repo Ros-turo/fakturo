@@ -1,12 +1,15 @@
+from collections.abc import AsyncGenerator, Sequence
 from datetime import date
-from typing import Any, Generator, AsyncGenerator, Sequence
+from typing import Any
 
-from sqlalchemy import RowMapping, Select, func, select, update
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.functions import coalesce
 
 from db_models import AuditLog, Invoice, InvoiceItem
 from repositories.base_repository import BaseRepo
+from repositories.interfaces import InvoiceListing
 from schemas import Action, InvoiceByStatus, InvoiceCreate, OrderBy, OrderDir, Status
 
 INVOICE_EAGER_OPTIONS = (
@@ -25,7 +28,6 @@ class InvoiceRepo(BaseRepo):
             client_id: int | None,
             status: Status | None,
     ) -> Select[Invoice]:
-
 
         if not client_id is None:
             stmt = stmt.where(Invoice.client_id == client_id)
@@ -66,35 +68,35 @@ class InvoiceRepo(BaseRepo):
         checker = await self.db.get(Invoice, invoice.id)
         return checker is not None
 
-    async def create_invoice(self, uid:int, invoice: InvoiceCreate) -> Invoice:
+    async def create_invoice(self, uid: int, invoice: InvoiceCreate) -> Invoice:
 
-        total_amount = sum(item.total_with_vat for item in invoice.invoice_items) # rewrite to metod
-        invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id = uid,
+        total_amount = sum(item.total_with_vat for item in invoice.invoice_items)  # rewrite to metod
+        invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id=uid,
                                 total_amount=total_amount)
         self.db.add(invoice_in_db)
         await self.db.flush()
 
         await self.db.execute(insert(InvoiceItem)
                               .values([{"invoice_id": invoice_in_db.id,
-                                                     **item.model_dump(exclude={"subtotal", "total_with_vat"})}
-                                                    for item in invoice.invoice_items])) #SRP - creating a ivnoiceitems-> invoiceitem repo
+                                        **item.model_dump(exclude={"subtotal", "total_with_vat"})}
+                                       for item in
+                                       invoice.invoice_items]))  #SRP - creating a ivnoiceitems-> invoiceitem repo
         await self.db.commit()
         result = await self.db.execute(select(Invoice)
                                        .options(selectinload(Invoice.invoice_items))
                                        .where(Invoice.id == invoice_in_db.id))
-        return result.scalar_one() # Create and get invoice? SRP problem?
+        return result.scalar_one()  # Create and get invoice? SRP problem?
 
     async def get_all_invoices(
             self,
-            uid:int,
+            uid: int,
             client_id: int | None,
             order_by: OrderBy | None,
             order_dir: OrderDir | None,
             status: Status | None,
             limit: int | None,
-            offset:int
-    ) -> Sequence[Invoice]: # too much argument
-        # -> new class? or classes? Separate to filter_where logic(client_id, status), pagination(limit, offset) and order_logic(order_by, order_dir)
+            offset: int
+    ) -> Sequence[Invoice]:
 
         stmt = (select(Invoice).options(selectinload(Invoice.invoice_items)).where(Invoice.owner_id == uid))
         stmt = self.filtering(stmt, client_id, status)
@@ -112,7 +114,7 @@ class InvoiceRepo(BaseRepo):
         async for invoice in invoices:
             yield invoice
 
-    async def get_one_invoice(self, uid:int, invoice_id:int) -> Invoice | None:
+    async def get_one_invoice(self, uid: int, invoice_id: int) -> Invoice | None:
         invoice_result = await self.db.execute(
             select(Invoice)
             .options(*INVOICE_EAGER_OPTIONS)
@@ -124,29 +126,29 @@ class InvoiceRepo(BaseRepo):
         invoice = invoice_result.scalar_one_or_none()
         return invoice
 
-    async def get_invoices_by_id(self,uid: int ,invoices_id: set[int]) -> AsyncGenerator[Invoice, None]:
-        stmt =(select(Invoice)
-            .where(Invoice.owner_id == uid, Invoice.id.in_(invoices_id))
-            .options(*INVOICE_EAGER_OPTIONS))
+    async def get_invoices_by_id(self, uid: int, invoices_id: set[int]) -> AsyncGenerator[Invoice, None]:
+        stmt = (select(Invoice)
+                .where(Invoice.owner_id == uid, Invoice.id.in_(invoices_id))
+                .options(*INVOICE_EAGER_OPTIONS))
         invoices = await self.db.stream(stmt)
         result = invoices.scalars()
         async for invoice in result:
             yield invoice
 
     async def change_invoice_status(self, invoice: Invoice, new_status: Status) -> None:
-        new_log= AuditLog(
+        new_log = AuditLog(
             table_name=invoice.__tablename__,
             row_id=invoice.id,
             action=Action.update,
             old_value=str(invoice.status),
-            new_value=str(new_status)# SRP create AuditLog instance not a Invoicerepo responsability
+            new_value=str(new_status)  # SRP create AuditLog instance not a Invoicerepo responsability
         )
         self.db.add(new_log)
         invoice.status = new_status
         self.db.add(invoice)
         await self.db.commit()
 
-    async def get_sum_by_status(self, uid:int) -> list[RowMapping]:
+    async def get_sum_by_status(self, uid: int) -> list[InvoiceByStatus]:
         raw_result = await self.db.execute(
             select(
                 Invoice.status,
@@ -156,45 +158,44 @@ class InvoiceRepo(BaseRepo):
             .group_by(Invoice.status))
         result = list(raw_result.mappings().all())
 
-        return result
+        return [InvoiceByStatus(**invoice) for invoice in result]
 
-    async def update_overdue_invoices(self,uid:int) -> int:
+    async def update_overdue_invoices(self, uid: int) -> int:
         # Wrong DRY - need a method which only get a overdue invoices, without updates...
         stmt = (update(Invoice)
                 .where(Invoice.owner_id == uid,
                        Invoice.due_date < date.today(),
                        Invoice.status == Status.sent)
-                .values(status = Status.overdue))
+                .values(status=Status.overdue))
         result = await self.db.execute(stmt)
         await self.db.commit()
-        return int(result.rowcount) # type: ignore [attr-defined]
+        return int(result.rowcount)  # type: ignore [attr-defined]
 
-    async def invoice_stats(self, uid:int) -> dict[str, Any] :
-        # CQS problem
-        overdue_row = await self.update_overdue_invoices(uid=uid) # Not safety, SRP problem
+    async def invoice_stats(self, uid: int) -> dict[str, Any]:
+
         main_stmt = (
             select(func.count(Invoice.id).label("total_invoices"),
-                   func.sum(Invoice.total_amount).label("total_revenue")
+                   coalesce(func.sum(Invoice.total_amount), 0).label("total_revenue")
                    )
             .where(Invoice.owner_id == uid)
         )
 
-        sub_stmt = await self.get_sum_by_status(uid) # DRY_2 get_sum_by_status returned value(almost)
+        sub_stmt = await self.get_sum_by_status(uid)  # DRY_2 get_sum_by_status returned value(almost)
         main_result = await self.db.execute(main_stmt)
         main_row = main_result.one()
 
         return {
             "total_invoices": main_row.total_invoices,
             "total_revenue": main_row.total_revenue,
-            "by_status":[invoice for invoice in sub_stmt],
-            "overdue_updated": overdue_row
+            "by_status": [invoice for invoice in sub_stmt]
         }
 
-    async def get_invoices_above_avg(self, uid) -> list[Invoice]:
+    async def get_invoices_above_avg(self, uid: int) -> list[Invoice]:
 
         sub_query = (select(func.avg(Invoice.total_amount)).where(Invoice.owner_id == uid)).scalar_subquery()
 
-        stmt = select(Invoice).where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
+        stmt = (select(Invoice).where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
+                .options(selectinload(Invoice.invoice_items)))
 
         row_result = await self.db.execute(stmt)
 

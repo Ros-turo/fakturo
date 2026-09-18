@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -38,7 +38,7 @@ class AuthRepo(BaseRepo):
         await self.db.commit()
 
     async def get_actual_tokens(self, uid: int) -> list[RefreshToken]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         stmt = select(RefreshToken).where(RefreshToken.user_id == uid,
                                           RefreshToken.revoked == False,
                                           RefreshToken.expired_at > now)

@@ -1,7 +1,16 @@
-from typing import Any, AsyncGenerator, Protocol
+from collections.abc import AsyncGenerator
+from typing import Any, Protocol, Sequence
 
-from db_models import Invoice, Client, RefreshToken
-from schemas import ClientUpdate, InvoiceCreate, Status, InvoiceByStatus, OrderBy, OrderDir
+from db_models import Client, Invoice, RefreshToken
+from schemas import (
+    ClientUpdate,
+    InvoiceByStatus,
+    InvoiceCreate,
+    OrderBy,
+    OrderDir,
+    Status,
+)
+
 
 class ClientCRUD(Protocol):
 
@@ -39,12 +48,20 @@ class InvoiceReporting(Protocol):
 
 class InvoiceListing(Protocol):
 
-    async def get_all_invoices(self, uid: int, client_id: int | None = None,
-                               order_by: OrderBy | None = None, order_dir: OrderDir | None = None,
-                               status: Status | None = None, limit: int | None = None,
-                               offset: int = 0) -> dict[str, Any]: ...
+    async def get_all_invoices(
+            self,
+            uid:int,
+            client_id: int | None,
+            order_by: OrderBy | None,
+            order_dir: OrderDir | None,
+            status: Status | None,
+            limit: int | None,
+            offset:int
+    ) -> Sequence[Invoice]: ...
 
-    async def a_get_all_invoices(self, uid: int) -> AsyncGenerator[Invoice, None]: ...
+    async def a_get_all_invoices(self, uid: int) -> AsyncGenerator[Invoice, None]:
+        raise NotImplementedError
+        yield
 
     async def get_invoices_by_id(self, uid: int, invoices_id: set[int]) -> AsyncGenerator[Invoice, None]: ...
 
