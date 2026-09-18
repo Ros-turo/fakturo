@@ -47,10 +47,6 @@ def clear_attempt_logger():
     yield
     attempt_logger.clear()
 
-@pytest.fixture(autouse=True)
-def mock_notify_invoice_created():
-    with patch("routers.invoices.notify_invoice_created"):
-        yield
 
 @pytest.fixture(scope="session")
 async def engine():

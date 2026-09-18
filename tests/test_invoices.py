@@ -8,6 +8,12 @@ from httpx import AsyncClient, Response
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from repositories.interfaces import (
+    InvoiceCRUD,
+    InvoiceReporting,
+    InvoiceListing,
+    InvoiceBatch,
+)
 from repositories.invoice_repository import InvoiceRepo
 from routers.auth import get_current_user
 from routers.invoices import get_invoice_repo
@@ -40,6 +46,14 @@ async def ownership_helper(
     finally:
         app.dependency_overrides[get_current_user] = original_override_user
     return cast(Response, response)
+
+
+# # dočasně, jen pro kontrolu — smaž po ověření
+# def _typecheck_invoice_repo(repo: InvoiceRepo) -> None:
+#     _crud: InvoiceCRUD = repo
+#     _reporting: InvoiceReporting = repo
+#     _listing: InvoiceListing = repo
+#     _batch: InvoiceBatch = repo
 
 def test_get_invoice_repo(db:AsyncSession) -> None:
     repo = get_invoice_repo(db)
@@ -186,7 +200,6 @@ async def test_get_one_invoice_not_found_error(
 
 async def test_get_one_invoice_ownership_isolation(
         user_with_one_invoice: tuple[AsyncClient, int, int],
-        unauthorized_user: AsyncClient,
         user_data: dict[str,str]
 ) -> None:
     user, _, invoice_id = user_with_one_invoice

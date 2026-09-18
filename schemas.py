@@ -1,4 +1,4 @@
-from typing import Annotated, Self
+from typing import Annotated, Any, Self
 from datetime import date, datetime
 from enum import Enum
 
@@ -142,9 +142,9 @@ class InvoiceStats(BaseModel):
     total_invoices: int
     total_revenue: Decimal
     by_status: list[InvoiceByStatus]
-    overdue_updated: int | None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class OrderQuery(BaseModel):
 

@@ -1,5 +1,3 @@
-from typing import Any
-
 from sqlalchemy import select
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -7,6 +5,7 @@ from db_models import Client
 from exceptions import VersionDeprecationError
 from repositories.base_repository import BaseRepo
 from schemas import ClientUpdate
+
 
 class ClientRepo(BaseRepo):
 
