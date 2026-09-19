@@ -1,103 +1,135 @@
-import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, HTTPException
 import httpx
+from fastapi import APIRouter, Depends, Path
+from httpx import Response as httpx_Response
+from starlette import status
 
-from repositories.client_repository import ClientRepo
-from schemas import ClientCreate, ClientResponse, ClientAres
-from routers.auth import CurrentUser
 from database import DBSession
-from db_models import  Client
-from exceptions import ClientNotFoundError
-from cache import set_cache, get_cache, delete_cache
-from logging_config import logger
+from db_models import Client
+from exceptions import ARESICONotFoundError, ARESNotAvailableError, ClientNotFoundError
+from repositories.client_repository import ClientRepo
+from repositories.interfaces import ClientCRUD, ClientListing
+from routers.auth import UserID, get_current_user
+from schemas import ClientAres, ClientCreate, ClientResponse, ClientUpdate
+from services.client_service import (
+    client_cache_deleter,
+    client_cache_getter,
+    client_cache_setter,
+    ares_parsing,
+)
+
+router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-router = APIRouter(prefix='/clients', tags=['clients'])
-
-
-def get_client_repo(db: DBSession)-> ClientRepo:
+def get_client_repo(db: DBSession) -> ClientRepo:
     return ClientRepo(db)
 
-ClientDepends = Annotated[ClientRepo, Depends(get_client_repo)]
 
-def ares_parsing(data:dict):
-    dic = data.get("dic",None)
-    street = data["sidlo"].get("nazevUlice", None)
-    house_number = data["sidlo"].get("cisloDomovni", None)
-    return {"name":data["obchodniJmeno"],
-            "ico":data["ico"],
-            "dic": dic,
-            "vat": True if dic else False,
-            "city": data["sidlo"]["nazevObce"],
-            "psc":data["sidlo"]["psc"],
-            "street":street,
-            "house_number":house_number}
+ClientCRUDDepends = Annotated[ClientCRUD, Depends(get_client_repo)]
+ClientListingDepends = Annotated[ClientListing, Depends(get_client_repo)]
 
 
-@router.get('/ares/{ico}', response_model=ClientAres)
-async def get_ico(ico: Annotated[str, Path(pattern=r'\d{8}')], user: CurrentUser):
+async def client_getter(
+    client_id: int, uid: UserID, client_repo: ClientCRUDDepends
+) -> Client:
+    client = await client_repo.get_one_client(uid=uid, client_id=client_id)
+    if client is None:
+        raise ClientNotFoundError(client_id=client_id)
+    return client
+
+
+ClientGetDepends = Annotated[Client, Depends(client_getter)]
+
+
+async def ares_request(
+    ico: str,
+) -> httpx_Response:
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f'https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/{ico}')
+            response = await client.get(
+                f"https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/{ico}"
+            )
         except httpx.RequestError:
-            raise HTTPException(status_code=503, detail="ARES neni dostupny")
+            raise ARESNotAvailableError()
     if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="IČO nenalezeno")
-    new_client = ClientAres(**ares_parsing(response.json()))
+        raise ARESICONotFoundError()
+    return response
+
+
+async def create_client_composition(
+    uid: UserID, data: ClientCreate, repo: ClientCRUDDepends
+) -> Client:
+
+    client = Client(**data.model_dump(), owner_id=uid)
+    created_client = await repo.create_client(client)
+
+    return created_client
+
+
+ClientCreateDepends = Annotated[Client, Depends(create_client_composition)]
+
+
+@router.get(
+    "/ares/{ico}", response_model=ClientAres, dependencies=[Depends(get_current_user)]
+)
+async def get_ico(ico: Annotated[str, Path(pattern=r"\d{8}")]) -> ClientAres:
+    ares_response = await ares_request(ico=ico)
+    ares_json = ares_response.json()
+    new_client = ClientAres(**ares_parsing(ares_json))
     return new_client
 
-@router.get('/', response_model=list[ClientResponse])
-async def get_clients(user: CurrentUser, repo: ClientDepends):
-    uid = user["uid"]
-    clients: list[Client] = await repo.get_all_clients(uid)
+
+@router.get("/", response_model=list[ClientResponse], status_code=200)
+async def get_clients(uid: UserID, repo: ClientListingDepends) -> list[Client]:
+
+    clients = await repo.get_all_clients(uid)
     return clients
 
-@router.get('/{client_id}', response_model=ClientResponse)
-async def get_client(client_id: int, user: CurrentUser, repo: ClientDepends):
-    uid = user['uid']
-    key = f"user_{uid}:clients:{client_id}"
 
-    cache_try = await get_cache(key=key)
-    if not (cache_try is None):
-        client_data = ClientResponse.model_validate_json(json_data=cache_try)
-        return client_data
+@router.get("/{client_id}", response_model=ClientResponse, status_code=200)
+async def get_client(
+    client_id: int, uid: UserID, repo: ClientCRUDDepends
+) -> ClientResponse:
 
-    client: Client | None = await repo.get_one_client(uid=uid, client_id=client_id)
-    if not client:
-        raise ClientNotFoundError(client_id=client_id)
+    response = await client_cache_getter(client_id=client_id, uid=uid, client_repo=repo)
+    return response
+
+
+@router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
+async def create_client(
+    client: ClientCreateDepends,
+    uid: UserID,
+) -> ClientResponse:
 
     response = ClientResponse.model_validate(client)
-    value = response.model_dump_json()
-    await set_cache(key=key, value=value, ttl=600)
+    await client_cache_setter(client=response, uid=uid, ttl=600)
 
     return response
 
-@router.post('/', response_model=ClientResponse, status_code=201)
-async def create_client(client: ClientCreate, user: CurrentUser,
-                  repo: ClientDepends):
 
-    uid = user['uid']
-    new_client = Client(**client.model_dump(),
-                        owner_id=uid)
+@router.patch(
+    "/{client_id}", response_model=ClientResponse, status_code=status.HTTP_200_OK
+)
+async def update_client(
+    client: ClientGetDepends,
+    client_repo: ClientCRUDDepends,
+    new_value: ClientUpdate,
+    uid: UserID,
+) -> ClientResponse:
 
-    created_client = await repo.create_client(new_client)
-    response = ClientResponse.model_validate(created_client)
-    client_id = created_client.id
-    cache_client = response.model_dump_json()
-    key = f"user_{uid}:clients:{client_id}"
-    await set_cache(key=key, value=cache_client, ttl=600)
+    raw_updated_client = await client_repo.update_client(
+        client=client, new_value=new_value
+    )
+    updated_client = ClientResponse.model_validate(raw_updated_client)
+    await client_cache_setter(client=updated_client, uid=uid, ttl=600)
+    return updated_client
 
-    return response
 
-@router.delete("/{client_id}", status_code=204)
-async def delete_client(client_id: int, user:CurrentUser, repo: ClientDepends):
-    uid = user["uid"]
-
-    client = await repo.delete_client(uid=uid, client_id=client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Not found")
-
-    key = f"user_{uid}:clients:{client_id}"
-    await delete_cache(key=key)
+@router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_client(
+    uid: UserID,
+    client: ClientGetDepends,
+    repo: ClientCRUDDepends,
+) -> None:
+    await client_cache_deleter(client=client, uid=uid, client_repo=repo)

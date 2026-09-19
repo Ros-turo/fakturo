@@ -2,7 +2,6 @@
 .env
 .env.*
 !.env.example
-
 # Python
 __pycache__/
 *.pyc
@@ -35,6 +34,7 @@ Thumbs.db
 # Logs
 *.log
 app.log
+error.txt
 
 # Build
 dist/

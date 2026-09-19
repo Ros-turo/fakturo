@@ -1,14 +1,12 @@
 name: CI
 
 on:
-    push:
-        branches: [main, develop]
-    pull_request:
-        branches: [main, develop]
-    workflow_dispatch:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
-env:
-    P_VER: "3.12"
 
 jobs:
 
@@ -17,19 +15,19 @@ jobs:
         steps:
             - name: Copy code
               uses: actions/checkout@v7
-            - name: Setup python
-              uses: actions/setup-python@v5
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
               with:
                 python-version: ${{ env.P_VER }}
             - name: Cache
               uses: actions/cache@v4
               with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+                  path: ~/.cache/uv
+                  key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
             - name: Install dependencies
-              run: pip install -r requirements.txt
+              run: uv sync
             - name: Run mypy
-              run: mypy .
+              run: uv run mypy .
 
     test:
         runs-on: ubuntu-latest
@@ -49,34 +47,34 @@ jobs:
                     --health-timeout 5s
                     --health-retries 3
 
-            redis:
-                image: redis:7
-                ports:
-                - 6379:6379
-                options: >-
-                    --health-cmd "redis-cli ping"
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 3
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
         steps:
             - name: Copy code
               uses: actions/checkout@v7
-            - name: Setup python
-              uses: actions/setup-python@v5
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
               with:
-                  python-version: ${{ env.P_VER }}
+                python-version: ${{ env.P_VER }}
             - name: Cache
               uses: actions/cache@v4
               with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+                  path: ~/.cache/uv
+                  key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
             - name: Install dependencies
-              run: pip install -r requirements.txt
+              run: uv sync
             - name: Run test
               env:
                   test_db_url: postgresql+asyncpg://testuser:testpass@localhost:5432/fakturo_test
                   DB_URL: ${{ secrets.DB_URL }}
                   SECRET_KEY: ${{ secrets.SECRET_KEY }}
                   redis_host: localhost
-              run: pytest
+              run: uv run pytest

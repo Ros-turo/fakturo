@@ -1,0 +1,403 @@
+from datetime import datetime, date, timedelta
+from operator import attrgetter
+from typing import Any, cast
+from unittest.mock import patch
+
+from fastapi import status
+from httpx import AsyncClient, Response
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from repositories.interfaces import (
+    InvoiceCRUD,
+    InvoiceReporting,
+    InvoiceListing,
+    InvoiceBatch,
+)
+from repositories.invoice_repository import InvoiceRepo
+from routers.auth import get_current_user
+from routers.invoices import get_invoice_repo
+from main import app
+from schemas import Status
+from tests.conftest import register_and_switch_to_new_user, user_data
+
+
+async def invoice_get_response(user: AsyncClient, invoice_id: int) -> Response:
+    return await user.get(f"/invoices/{invoice_id}")
+
+
+def response_tuple(response: Response) -> tuple[Any, int]:
+    response_data = response.json()
+    status_code = response.status_code
+    return response_data, status_code
+
+
+async def ownership_helper(
+    user_data: dict[str, str],
+    user: AsyncClient,
+    method: str,
+    url: str,
+    params: dict | None = None,
+) -> Response:
+    # helper which take method, url and param and return Response
+    request = getattr(user, method)
+    original_override_user = app.dependency_overrides.pop(get_current_user)
+    try:
+        await register_and_switch_to_new_user(user, user_data, "2")
+        response = await request(url, params=params)
+    finally:
+        app.dependency_overrides[get_current_user] = original_override_user
+    return cast(Response, response)
+
+
+# # dočasně, jen pro kontrolu — smaž po ověření
+# def _typecheck_invoice_repo(repo: InvoiceRepo) -> None:
+#     _crud: InvoiceCRUD = repo
+#     _reporting: InvoiceReporting = repo
+#     _listing: InvoiceListing = repo
+#     _batch: InvoiceBatch = repo
+
+
+def test_get_invoice_repo(db: AsyncSession) -> None:
+    repo = get_invoice_repo(db)
+
+    assert isinstance(repo, InvoiceRepo)
+
+
+@pytest.fixture
+async def invoice_json(user_with_one_client: tuple[AsyncClient, int]) -> dict[str, Any]:
+
+    _, client_id = user_with_one_client
+
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
+    return {
+        "invoice_number": "string",
+        "issue_date": f"{today}",
+        "due_date": f"{tomorrow}",
+        "client_id": client_id,
+        "invoice_items": [
+            {"description": "string", "unit_price": 100, "quantity": 1, "vat_rate": 21}
+        ],
+    }
+
+
+@pytest.fixture
+async def user_with_one_invoice(
+    user_with_one_client: tuple[AsyncClient, int], invoice_json: dict[str, Any]
+) -> tuple[AsyncClient, int, int]:
+
+    user, client_id = user_with_one_client
+    response = await user.post("/invoices/create_invoice", json=invoice_json)
+
+    response_data = response.json()
+    invoice_id = response_data["id"]
+
+    return user, client_id, invoice_id
+
+
+# POST
+
+## create_invoice
+
+
+async def test_create_invoice_success(
+    user: AsyncClient, invoice_json: dict[str, Any]
+) -> None:
+    response = await user.post("/invoices/create_invoice", json=invoice_json)
+
+    response_data, response_status_code = response_tuple(response)
+    response_invoice_number = response_data["invoice_number"]
+
+    assert response_status_code == status.HTTP_201_CREATED
+    assert response_invoice_number == invoice_json["invoice_number"]
+
+
+async def test_create_invoice_with_nonexist_client(
+    user: AsyncClient, invoice_json: dict[str, Any]
+) -> None:
+
+    invoice_json["client_id"] = 9999999
+
+    response = await user.post("/invoices/create_invoice", json=invoice_json)
+
+    response_data, response_status_code = response_tuple(response)
+
+    assert response_data == {"detail": "Client 9999999 is not found"}
+    assert response_status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_create_invoice_validation_error(
+    user: AsyncClient, invoice_json: dict[str, Any]
+) -> None:
+
+    invoice_json["invoice_number"] = 123
+
+    response = await user.post("/invoices/create_invoice", json=invoice_json)
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+async def test_create_invoice_empty_body(user: AsyncClient) -> None:
+
+    response = await user.post("/invoices/create_invoice", json={})
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+## invoice_to_pdf
+async def test_invoice_to_pdf_success(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+
+    with patch("routers.invoices.pdf_email_workflow"):
+        response = await user.post(f"/invoices/{invoice_id}/pdf")
+
+    _, response_status_code = response_tuple(response)
+
+    assert response_status_code == 202
+
+
+async def test_invoice_to_pdf_not_found(user: AsyncClient) -> None:
+
+    response = await user.post("/invoices/999999/pdf")
+
+    response_data, response_status_code = response_tuple(response)
+
+    assert response_data == {"detail": "Invoice 999999 is not found"}
+    assert response_status_code == 404
+
+
+# GET
+## get_one_invoice
+
+
+async def test_get_one_invoice_success(
+    user_with_one_invoice: tuple[AsyncClient, int, int], invoice_json: dict[str, Any]
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+
+    response = await invoice_get_response(user, invoice_id)
+
+    response_data, response_status_code = response_tuple(response)
+
+    assert invoice_id == response_data["id"]
+    assert invoice_json["invoice_number"] == response_data["invoice_number"]
+    assert response_status_code == status.HTTP_200_OK
+
+
+async def test_get_one_invoice_not_found_error(user: AsyncClient) -> None:
+
+    response = await invoice_get_response(user, 999999)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_get_one_invoice_ownership_isolation(
+    user_with_one_invoice: tuple[AsyncClient, int, int], user_data: dict[str, str]
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+    response = await ownership_helper(user_data, user, "get", f"/invoices/{invoice_id}")
+    response_data, response_status_code = response_tuple(response)
+
+    assert response_status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": f"Invoice {invoice_id} is not found"}
+
+
+## get_invoices
+
+
+async def test_get_invoices_success_without_invoices(user: AsyncClient) -> None:
+
+    response = await user.get("/invoices/")
+
+    response_data, response_status_code = response_tuple(response)
+
+    assert response_status_code == status.HTTP_200_OK
+    assert response_data == []
+
+
+async def test_get_invoices_success_with_one_invoice(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+) -> None:
+    user, *_ = user_with_one_invoice
+
+    response = await user.get("/invoices/")
+
+    response_data, response_status_code = response_tuple(response)
+
+    assert response_status_code == status.HTTP_200_OK
+    assert len(response_data) == 1
+
+
+## get_invoices_stats
+
+## sum_by_status
+
+## update_overdue
+
+## export_invoices
+
+## invoices_dashboard
+
+## bulk_invoice_to_pdf
+
+## get_invoices_above_average
+
+
+# PATCH
+
+
+async def change_invoice_status_endpoint(
+    user,
+    invoice_id: int,
+    new_status: str,
+    old_status: str | None = None,
+) -> tuple[Response, Any]:
+
+    if old_status is None:
+        response_with_old_value = await invoice_get_response(user, invoice_id)
+        invoice_with_old_value, _ = response_tuple(response_with_old_value)
+        response_old_status = invoice_with_old_value["status"]
+    else:
+        response_old_status = old_status
+
+    response_with_new_value = await user.patch(
+        f"invoices/{invoice_id}/status", params={"new_status": new_status}
+    )
+
+    return response_with_new_value, response_old_status
+
+
+## change_status
+async def test_change_invoice_status_success(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+    new_status = Status.sent.value
+
+    response, old_status = await change_invoice_status_endpoint(
+        user, invoice_id, new_status
+    )
+    response_data, status_code = response_tuple(response)
+    response_new_status = response_data["status"]
+
+    assert status_code == status.HTTP_200_OK
+    assert old_status == Status.draft.value
+    assert response_new_status == Status.sent.value
+
+
+async def test_change_invoice_status_failure(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+    immutable_status = Status.paid.value
+    setup, _ = await change_invoice_status_endpoint(user, invoice_id, immutable_status)
+    setup_status_code = setup.status_code
+
+    new_status = Status.sent.value
+    response, old_status = await change_invoice_status_endpoint(
+        user, invoice_id, new_status
+    )
+    response_data, status_code = response_tuple(response)
+    detail = response_data["detail"]
+
+    assert setup_status_code == status.HTTP_200_OK
+    assert status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert new_status in detail
+    assert old_status in detail
+
+
+async def test_change_invoice_status_ownership_isolation(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+    user_data: dict[str, str],
+) -> None:
+
+    user, _, invoice_id = user_with_one_invoice
+    invoice_response = await invoice_get_response(user, invoice_id)
+    invoice, _ = response_tuple(invoice_response)
+    old_status = invoice["status"]
+    response = await ownership_helper(
+        user_data,
+        user,
+        "patch",
+        f"/invoices/{invoice_id}/status",
+        params={"new_status": Status.paid.value},
+    )
+
+    response_data, status_code = response_tuple(response)
+
+    assert old_status == Status.draft.value
+    assert status_code == status.HTTP_404_NOT_FOUND
+    assert "not found" in response_data["detail"].lower()
+
+
+# DELETE
+## delete_draft_invoice
+async def test_delete_draft_invoice_success(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+
+    invoice_response = await invoice_get_response(user, invoice_id)
+    invoice_data = invoice_response.json()
+    invoice_status = invoice_data["status"]
+
+    assert invoice_status == Status.draft
+
+    delete_response = await user.delete(f"/invoices/{invoice_id}")
+
+    assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+
+    invoice_response = await invoice_get_response(user, invoice_id)
+    invoice_data, invoice_status_code = response_tuple(invoice_response)
+
+    assert invoice_status_code == status.HTTP_404_NOT_FOUND
+    assert invoice_data == {"detail": f"Invoice {invoice_id} is not found"}
+
+
+async def test_delete_draft_invoice_ownership_isolation(
+    user_with_one_invoice: tuple[AsyncClient, int, int], user_data: dict[str, str]
+) -> None:
+
+    user, _, invoice_id = user_with_one_invoice
+
+    response = await ownership_helper(
+        user_data, user, "delete", f"/invoices/{invoice_id}"
+    )
+    delete_data, delete_status_code = response_tuple(response)
+
+    assert delete_data == {"detail": f"Invoice {invoice_id} is not found"}
+    assert delete_status_code == status.HTTP_404_NOT_FOUND
+
+    invoice_response = await invoice_get_response(user, invoice_id)
+    invoice_data, invoice_status_code = response_tuple(invoice_response)
+    invoice_data_id = invoice_data["id"]
+
+    assert invoice_status_code == status.HTTP_200_OK
+    assert invoice_data_id == invoice_id
+
+
+async def test_delete_non_draft_invoice(
+    user_with_one_invoice: tuple[AsyncClient, int, int],
+) -> None:
+    user, _, invoice_id = user_with_one_invoice
+
+    await user.patch(f"/invoices/{invoice_id}/status", params={"new_status": "sent"})
+
+    invoice_response = await invoice_get_response(user, invoice_id)
+    invoice_data = invoice_response.json()
+
+    invoice_status = invoice_data["status"]
+
+    assert invoice_status == Status.sent
+
+    delete_response = await user.delete(f"/invoices/{invoice_id}")
+
+    delete_response_data, delete_status_code = response_tuple(delete_response)
+
+    assert delete_status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+    assert delete_response_data == {
+        "detail": f"Invoice: Not allowed to delete invoices that was sent already "
+    }
