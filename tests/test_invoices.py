@@ -29,7 +29,6 @@ def response_tuple(response: Response) -> tuple[Any, int]:
     status_code = response.status_code
     return response_data, status_code
 
-
 async def ownership_helper(
         user_data:dict[str,str],
         user: AsyncClient,
@@ -154,7 +153,7 @@ async def test_invoice_to_pdf_success(
 ) -> None:
     user, _, invoice_id = user_with_one_invoice
 
-    with patch("routers.invoices.chain"):
+    with patch("routers.invoices.pdf_email_workflow"):
         response = await user.post(f"/invoices/{invoice_id}/pdf")
 
     _, response_status_code = response_tuple(response)
@@ -340,10 +339,7 @@ async def test_delete_draft_invoice_success(
 
     delete_response = await user.delete(f"/invoices/{invoice_id}")
 
-    delete_response_data, delete_status_code = response_tuple(delete_response)
-
-    assert delete_status_code == status.HTTP_200_OK
-    assert delete_response_data == {'detail': ' Invoice is deleted'}
+    assert delete_response.status_code == status.HTTP_204_NO_CONTENT
 
     invoice_response = await invoice_get_response(user, invoice_id)
     invoice_data, invoice_status_code = response_tuple(invoice_response)

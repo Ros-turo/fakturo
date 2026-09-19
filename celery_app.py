@@ -1,6 +1,7 @@
 import asyncio
 
-from celery import Celery
+from celery import Celery, chain
+from celery.result import AsyncResult
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import joinedload, selectinload
@@ -20,7 +21,7 @@ celery_app = Celery(
 def send_email_task(result: list[bytes|str], text:str ):
 
     pdf_bytes, email = result
-    print(pdf_bytes, email, text)
+    print(pdf_bytes, email, text) # Placeholder for sending
 
 @celery_app.task(autoretry_for=(ConnectionError,), max_retries=3, retry_backoff=True)
 def generate_pdf(invoice_id: int, uid: int):
@@ -36,11 +37,21 @@ def generate_pdf(invoice_id: int, uid: int):
     result = [pdf, email]
     return result
 
+def pdf_email_workflow(
+        invoice_id: int,
+        uid: int,
+        text: str,
+) -> AsyncResult:
 
+    workflow = chain(
+        generate_pdf.s(invoice_id, uid),
+        send_email_task.s(text=text)
+    )
 
-
+    return workflow.apply_async()
 
 async def _get_invoice_async(invoice_id: int, uid: int):
+    #TODO: not celery response - extract somewhere ?
     engine = create_async_engine(url=settings.db_url)
     try:
         async with AsyncSession(engine) as db:

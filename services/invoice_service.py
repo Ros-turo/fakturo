@@ -1,7 +1,16 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator, cast
+
+from celery import chain
 
 from db_models import Invoice
-from exceptions import InvoiceDeleteError, InvalidStatusChangeError
+from exceptions import (
+    InvoiceConflict,
+    InvoiceDeleteError,
+    InvalidStatusChangeError,
+    InvoiceNotFoundError,
+)
+from logging_config import logger
+from repositories.interfaces import InvoiceCRUD
 from schemas import Status, STATUS_MAP, InvoiceResponse
 
 
@@ -10,10 +19,43 @@ def draft_invoice_checker(invoice: Invoice) -> None:
         raise InvoiceDeleteError("Not allowed to delete invoices that was sent already ")
 
 
+async def delete_invoice_with_checker(
+        invoice: Invoice,
+        invoice_repo: InvoiceCRUD
+) -> None:
+    draft_invoice_checker(invoice=invoice)
+    result = await invoice_repo.delete_invoice(invoice=invoice)
+    if result:
+        logger.warning(
+            f"Invoice {invoice.id =} {invoice.invoice_number= } was deleted suspicious"
+        )
+        raise InvoiceConflict(
+            "Invoice was already deleted, if it's wasn't you please change a password "
+            "and contact us to help"
+        )
+
+
 def valid_status_change(old_status: Status, new_status: Status) -> None:
     if not (new_status in STATUS_MAP[old_status]):
         raise InvalidStatusChangeError(from_status=old_status, to_status=new_status)
 
+
+async def status_change_with_checker(
+        invoice: Invoice,
+        new_status: Status,
+        invoice_repo: InvoiceCRUD
+) -> Invoice:
+
+    valid_status_change(old_status=invoice.status, new_status=new_status)
+    await invoice_repo.change_invoice_status(invoice=invoice, new_status=new_status)
+    invoice_with_new_status = await invoice_repo.get_one_invoice(uid=invoice.owner_id, invoice_id=invoice.id)
+    if invoice_with_new_status is None:
+        raise InvoiceConflict(
+            f"Invoice with id {Invoice.id} already exists, "
+            f"if you don`t delete it, please change your password and contact us"
+        )
+
+    return invoice_with_new_status
 
 async def get_invoice_json(invoices: AsyncGenerator[Invoice, None]) -> AsyncGenerator[str, None]:
     async for invoice in invoices:

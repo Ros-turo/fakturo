@@ -1,17 +1,13 @@
-import asyncio
 from typing import Annotated, Any, Sequence
-from celery import chain
 from fastapi import APIRouter, Depends, Path, Query, status
 from starlette.responses import JSONResponse, StreamingResponse
 
-from celery_app import generate_pdf, send_email_task
-from database import DBSession, SessionLocal
+from celery_app import pdf_email_workflow
+from database import DBSession
 from db_models import Invoice
 from exceptions import (
-    InvoiceConflict,
     InvoiceNotFoundError,
 )
-from logging_config import logger
 from repositories.interfaces import (
     InvoiceCRUD,
     InvoiceListing,
@@ -33,8 +29,9 @@ from schemas import (
     Status,
 )
 from services.invoice_service import (
+    delete_invoice_with_checker,
     draft_invoice_checker,
-    valid_status_change,
+    status_change_with_checker,
     get_invoice_json,
 )
 
@@ -52,14 +49,22 @@ InvoiceListingDepends = Annotated[InvoiceListing, Depends(get_invoice_repo)]
 InvoiceBatchDepends = Annotated[InvoiceBatch, Depends(get_invoice_repo)]
 
 
-async def is_user_has_client(client_repo: ClientCRUDDepends, uid: UserID, invoice_data: InvoiceCreate) -> bool:
+async def is_user_has_client(
+        client_repo: ClientCRUDDepends,
+        uid: UserID,
+        invoice_data: InvoiceCreate
+) -> bool:
     client_id = invoice_data.client_id
     await client_getter(client_id=client_id, client_repo=client_repo, uid=uid)
     return True
 
 
-async def invoice_getter(repo: InvoiceCRUDDepends, uid: UserID, invoice_id: Annotated[int, Path()]) -> Invoice:
-    invoice = await repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
+async def invoice_getter(
+        invoice_repo: InvoiceCRUDDepends,
+        uid: UserID,
+        invoice_id: Annotated[int, Path()]
+) -> Invoice:
+    invoice = await invoice_repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
         raise InvoiceNotFoundError(invoice_id=invoice_id)
     return invoice
@@ -90,8 +95,12 @@ def order_query(
 OrderQueryDepends = Annotated[OrderQuery, Depends(order_query)]
 
 
-@router.post("/create_invoice", status_code=status.HTTP_201_CREATED, response_model=InvoiceResponse,
-             dependencies=[Depends(is_user_has_client)])
+@router.post(
+    "/create_invoice",
+    status_code=status.HTTP_201_CREATED,
+    response_model=InvoiceResponse,
+    dependencies=[Depends(is_user_has_client)]
+)
 async def create_invoice(
         uid: UserID,
         invoice_data: InvoiceCreate,
@@ -101,7 +110,11 @@ async def create_invoice(
     return new_invoice
 
 
-@router.get("/", status_code=status.HTTP_200_OK, response_model=Sequence[InvoiceResponse])
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    response_model=Sequence[InvoiceResponse]
+)
 async def get_invoices(
         uid: UserID,
         invoice_repo: InvoiceListingDepends,
@@ -120,7 +133,11 @@ async def get_invoices(
     return responses
 
 
-@router.get("/stats", status_code=status.HTTP_200_OK, response_model=InvoiceStats)
+@router.get(
+    "/stats",
+    status_code=status.HTTP_200_OK,
+    response_model=InvoiceStats
+)
 async def get_invoices_stats(
         uid: UserID,
         invoice_repo: InvoiceReportingDepends
@@ -128,7 +145,11 @@ async def get_invoices_stats(
     return await invoice_repo.invoice_stats(uid=uid)
 
 
-@router.get("/sum_by_status", status_code=status.HTTP_200_OK, response_model=list[InvoiceByStatus])
+@router.get(
+    "/sum_by_status",
+    status_code=status.HTTP_200_OK,
+    response_model=list[InvoiceByStatus]
+)
 async def sum_by_status(
         uid: UserID,
         invoice_repo: InvoiceReportingDepends
@@ -136,7 +157,10 @@ async def sum_by_status(
     return await invoice_repo.get_sum_by_status(uid=uid)
 
 
-@router.get("/update_overdue", status_code=status.HTTP_200_OK)
+@router.get(
+    "/update_overdue",
+    status_code=status.HTTP_200_OK
+)
 async def update_overdue(
         uid: UserID,
         invoice_repo: InvoiceBatchDepends
@@ -151,7 +175,10 @@ async def update_overdue(
     )
 
 
-@router.get("/export_invoices", status_code=status.HTTP_200_OK)
+@router.get(
+    "/export_invoices",
+    status_code=status.HTTP_200_OK
+)
 async def export_invoices(
         uid: UserID,
         invoice_repo: InvoiceListingDepends
@@ -161,7 +188,10 @@ async def export_invoices(
     return StreamingResponse(get_invoice_json(result), media_type="application/x-ndjson")
 
 
-@router.get("/invoices_dashboard", status_code=status.HTTP_200_OK)
+@router.get(
+    "/invoices_dashboard",
+    status_code=status.HTTP_200_OK
+)
 async def invoice_dashboard(
         uid: UserID,
         invoice_repo: InvoiceReportingDepends
@@ -171,45 +201,11 @@ async def invoice_dashboard(
     return InvoiceStats(**raw_stats)
 
 
-#
-# @router.get("/bulk_pdf_create", response_model= BulkPDFResponse)
-# async def bulk_invoice_to_pdf(
-#         invoices_id: Annotated[set[int],
-#         Query(min_length=1, max_length=50)],
-#         uid: UserID,
-#         invoice_repo: InvoiceListingDepends
-# ):
-#     # TODO (KISS/architecture): endpoint generuje PDF synchronně v request-response
-#     # cyklu (asyncio.to_thread + gather), na rozdíl od invoice_to_pdf, který stejnou
-#     # práci delegoval na Celery. Zvážit sjednocení na Celery vzor při SRP refaktoringu.
-#     # TODO (security, minor): response obsahuje "Denied_id" se seznamem ID, která
-#     # nepatří uživateli — potvrzuje existenci cizí faktury. Zvážit odstranění tohoto
-#     # pole z response, logging warning stačí.
-#     tripped_id = set()
-#     coros = []
-#     invoice_generator = invoice_repo.get_invoices_by_id(uid, invoices_id)
-#     async for invoice in invoice_generator:
-#             tripped_id.add(invoice.id)
-#             coro = asyncio.to_thread(invoice_pdf, invoice)
-#             coros.append(coro)
-#
-#     pdf_list = await asyncio.gather(*coros, return_exceptions=True)
-#
-#     invoices_id -= tripped_id
-#
-#     if invoices_id:
-#         logger.warning(f"User {uid} attempted to access invoices not owned: {invoices_id}")
-#
-#     size = sum([len(pdf) for pdf in pdf_list if not isinstance(pdf, BaseException)])
-#     created_count = len(tripped_id) - len([pdf for pdf in pdf_list if isinstance(pdf, BaseException)])
-#     return {
-#         "status": "ok",
-#         "Denied_id": invoices_id,
-#         "Created_pdf_count":created_count,
-#         "Size": size,
-#     }
-
-@router.get("/average_total_amount", status_code=status.HTTP_200_OK, response_model=list[InvoiceResponse])
+@router.get(
+    "/average_total_amount",
+    status_code=status.HTTP_200_OK,
+    response_model=list[InvoiceResponse]
+)
 async def get_invoices_above_average(
         uid: UserID,
         invoice_repo: InvoiceReportingDepends
@@ -217,27 +213,28 @@ async def get_invoices_above_average(
     return await invoice_repo.get_invoices_above_avg(uid=uid)
 
 
-@router.get("/{invoice_id}", status_code=status.HTTP_200_OK, response_model=InvoiceResponse)
+@router.get(
+    "/{invoice_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=InvoiceResponse
+)
 async def get_one_invoice(
         invoice: GetterInvoice
 ) -> Invoice:
     return invoice
 
 
-@router.post("/{invoice_id}/pdf", dependencies=[Depends(invoice_getter)])
+@router.post(
+    "/{invoice_id}/pdf",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(invoice_getter)]
+)
 async def invoice_to_pdf(
         uid: UserID,
         invoice_id: Annotated[int, Path()]
 ) -> JSONResponse:
     """ Convert invoice to pdf"""
-    #TODO: workflow exrtact to service layer
-
-    pdf_email_workflow = chain(
-        generate_pdf.s(invoice_id, uid),
-        send_email_task.s(text="Your invoice in pdf is coming")
-    )
-
-    pdf_email_workflow.apply_async()
+    pdf_email_workflow(uid=uid, invoice_id=invoice_id, text="Your invoice in pdf is coming")
 
     return JSONResponse(status_code=202,
                         content={
@@ -245,35 +242,35 @@ async def invoice_to_pdf(
                         })
 
 
-@router.patch("/{invoice_id}/status", status_code=status.HTTP_200_OK, response_model=InvoiceResponse,
-              dependencies=[Depends(get_current_user)])
+@router.patch(
+    "/{invoice_id}/status",
+    status_code=status.HTTP_200_OK,
+    response_model=InvoiceResponse,
+    dependencies=[Depends(get_current_user)]
+)
 async def change_status(
         invoice: GetterInvoice,
         new_status: Status,
         invoice_repo: InvoiceCRUDDepends
 ) -> Invoice:
-    #TODO: extract validation to service layer
-    old_status = invoice.status
-    valid_status_change(old_status=old_status, new_status=new_status)
-    await invoice_repo.change_invoice_status(invoice=invoice, new_status=new_status)
 
-    return invoice
+    invoice_with_updated_status = await status_change_with_checker(
+        invoice=invoice,
+        new_status=new_status,
+        invoice_repo=invoice_repo
+    )
+    return invoice_with_updated_status
 
 
-@router.delete("/{invoice_id}", dependencies=[Depends(get_current_user_active)])
+@router.delete(
+    "/{invoice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(get_current_user_active)]
+)
 async def delete_draft_invoice(
         invoice: GetterInvoice,
         invoice_repo: InvoiceCRUDDepends
-) -> JSONResponse:
+) -> None:
 
-    draft_invoice_checker(invoice=invoice)
-    result = await invoice_repo.delete_invoice(invoice)
-    if result:
-        logger.warning(f"Invoice {invoice.id =} {invoice.invoice_number= } was deleted suspicious")
-        raise InvoiceConflict(
-            "Invoice was already deleted, if it's wasn't you please change a password and contact us to help")
+    await delete_invoice_with_checker(invoice=invoice, invoice_repo=invoice_repo)
 
-    return JSONResponse(
-        status_code=200,
-        content={"detail": " Invoice is deleted"}
-    )
