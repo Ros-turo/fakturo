@@ -7,7 +7,6 @@ from sqlalchemy import text
 from database import engine
 from middleware import TimingLoggingMiddleware, CORSMiddleware
 from routers import clients, auth, invoices
-from sockets import wbs
 from exceptions import ARESNotAvailableError, AuthError,  FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
 from exception_handlers import (ares_not_available_handler, business_rule_handler, conflict_handler, invalid_credentials_handler,
                                 not_found_handler, cant_delete_handler)
@@ -37,7 +36,6 @@ app.add_middleware(CORSMiddleware)
 app.include_router(clients.router)
 app.include_router(auth.router)
 app.include_router(invoices.router)
-app.include_router(wbs)
 
 
 # Exceptions
