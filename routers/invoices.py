@@ -50,9 +50,7 @@ InvoiceBatchDepends = Annotated[InvoiceBatch, Depends(get_invoice_repo)]
 
 
 async def is_user_has_client(
-        client_repo: ClientCRUDDepends,
-        uid: UserID,
-        invoice_data: InvoiceCreate
+    client_repo: ClientCRUDDepends, uid: UserID, invoice_data: InvoiceCreate
 ) -> bool:
     client_id = invoice_data.client_id
     await client_getter(client_id=client_id, client_repo=client_repo, uid=uid)
@@ -60,9 +58,7 @@ async def is_user_has_client(
 
 
 async def invoice_getter(
-        invoice_repo: InvoiceCRUDDepends,
-        uid: UserID,
-        invoice_id: Annotated[int, Path()]
+    invoice_repo: InvoiceCRUDDepends, uid: UserID, invoice_id: Annotated[int, Path()]
 ) -> Invoice:
     invoice = await invoice_repo.get_one_invoice(uid=uid, invoice_id=invoice_id)
     if not invoice:
@@ -71,13 +67,14 @@ async def invoice_getter(
 
 
 GetterInvoice = Annotated[Invoice, Depends(invoice_getter)]
-DraftChecker = Annotated[Invoice, Depends(draft_invoice_checker)]  # Checking if invoice has draft status
+DraftChecker = Annotated[
+    Invoice, Depends(draft_invoice_checker)
+]  # Checking if invoice has draft status
 
 
 # Query helpers
 def pagination_query(
-        limit: Annotated[int | None, Query()] = None,
-        offset: Annotated[int, Query()] = 0
+    limit: Annotated[int | None, Query()] = None, offset: Annotated[int, Query()] = 0
 ) -> PaginationQuery:
     return PaginationQuery(limit=limit, offset=offset)
 
@@ -86,8 +83,8 @@ PagDepends = Annotated[PaginationQuery, Depends(pagination_query)]
 
 
 def order_query(
-        order_by: Annotated[OrderBy | None, Query()] = None,
-        order_dir: Annotated[OrderDir | None, Query()] = None,
+    order_by: Annotated[OrderBy | None, Query()] = None,
+    order_dir: Annotated[OrderDir | None, Query()] = None,
 ) -> OrderQuery:
     return OrderQuery(order_by=order_by, order_dir=order_dir)
 
@@ -99,48 +96,43 @@ OrderQueryDepends = Annotated[OrderQuery, Depends(order_query)]
     "/create_invoice",
     status_code=status.HTTP_201_CREATED,
     response_model=InvoiceResponse,
-    dependencies=[Depends(is_user_has_client)]
+    dependencies=[Depends(is_user_has_client)],
 )
 async def create_invoice(
-        uid: UserID,
-        invoice_data: InvoiceCreate,
-        invoice_repo: InvoiceCRUDDepends,
+    uid: UserID,
+    invoice_data: InvoiceCreate,
+    invoice_repo: InvoiceCRUDDepends,
 ) -> Invoice:
     new_invoice = await invoice_repo.create_invoice(uid=uid, invoice=invoice_data)
     return new_invoice
 
 
 @router.get(
-    "/",
-    status_code=status.HTTP_200_OK,
-    response_model=Sequence[InvoiceResponse]
+    "/", status_code=status.HTTP_200_OK, response_model=Sequence[InvoiceResponse]
 )
 async def get_invoices(
-        uid: UserID,
-        invoice_repo: InvoiceListingDepends,
-        pagination: PagDepends,
-        order: OrderQueryDepends,
-        client_id: Annotated[int | None, Query()] = None,
-        status: Annotated[Status | None, Query()] = None,
+    uid: UserID,
+    invoice_repo: InvoiceListingDepends,
+    pagination: PagDepends,
+    order: OrderQueryDepends,
+    client_id: Annotated[int | None, Query()] = None,
+    status: Annotated[Status | None, Query()] = None,
 ) -> Sequence[Invoice]:
-    responses = await invoice_repo.get_all_invoices(uid=uid,
-                                                    client_id=client_id,
-                                                    order_by=order.order_by,
-                                                    order_dir=order.order_dir,
-                                                    status=status,
-                                                    limit=pagination.limit,
-                                                    offset=pagination.offset)
+    responses = await invoice_repo.get_all_invoices(
+        uid=uid,
+        client_id=client_id,
+        order_by=order.order_by,
+        order_dir=order.order_dir,
+        status=status,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
     return responses
 
 
-@router.get(
-    "/stats",
-    status_code=status.HTTP_200_OK,
-    response_model=InvoiceStats
-)
+@router.get("/stats", status_code=status.HTTP_200_OK, response_model=InvoiceStats)
 async def get_invoices_stats(
-        uid: UserID,
-        invoice_repo: InvoiceReportingDepends
+    uid: UserID, invoice_repo: InvoiceReportingDepends
 ) -> dict[str, Any]:
     return await invoice_repo.invoice_stats(uid=uid)
 
@@ -148,53 +140,40 @@ async def get_invoices_stats(
 @router.get(
     "/sum_by_status",
     status_code=status.HTTP_200_OK,
-    response_model=list[InvoiceByStatus]
+    response_model=list[InvoiceByStatus],
 )
 async def sum_by_status(
-        uid: UserID,
-        invoice_repo: InvoiceReportingDepends
+    uid: UserID, invoice_repo: InvoiceReportingDepends
 ) -> list[InvoiceByStatus]:
     return await invoice_repo.get_sum_by_status(uid=uid)
 
 
-@router.get(
-    "/update_overdue",
-    status_code=status.HTTP_200_OK
-)
+@router.get("/update_overdue", status_code=status.HTTP_200_OK)
 async def update_overdue(
-        uid: UserID,
-        invoice_repo: InvoiceBatchDepends
+    uid: UserID, invoice_repo: InvoiceBatchDepends
 ) -> JSONResponse:
 
     update_count = await invoice_repo.update_overdue_invoices(uid=uid)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={
-            "detail": f"{update_count} overdue invoices"
-        }
+        content={"detail": f"{update_count} overdue invoices"},
     )
 
 
-@router.get(
-    "/export_invoices",
-    status_code=status.HTTP_200_OK
-)
+@router.get("/export_invoices", status_code=status.HTTP_200_OK)
 async def export_invoices(
-        uid: UserID,
-        invoice_repo: InvoiceListingDepends
+    uid: UserID, invoice_repo: InvoiceListingDepends
 ) -> StreamingResponse:
 
     result = invoice_repo.a_get_all_invoices(uid=uid)
-    return StreamingResponse(get_invoice_json(result), media_type="application/x-ndjson")
+    return StreamingResponse(
+        get_invoice_json(result), media_type="application/x-ndjson"
+    )
 
 
-@router.get(
-    "/invoices_dashboard",
-    status_code=status.HTTP_200_OK
-)
+@router.get("/invoices_dashboard", status_code=status.HTTP_200_OK)
 async def invoice_dashboard(
-        uid: UserID,
-        invoice_repo: InvoiceReportingDepends
+    uid: UserID, invoice_repo: InvoiceReportingDepends
 ) -> InvoiceStats:
 
     raw_stats = await invoice_repo.invoice_stats(uid=uid)
@@ -204,60 +183,54 @@ async def invoice_dashboard(
 @router.get(
     "/average_total_amount",
     status_code=status.HTTP_200_OK,
-    response_model=list[InvoiceResponse]
+    response_model=list[InvoiceResponse],
 )
 async def get_invoices_above_average(
-        uid: UserID,
-        invoice_repo: InvoiceReportingDepends
+    uid: UserID, invoice_repo: InvoiceReportingDepends
 ) -> list[Invoice]:
     return await invoice_repo.get_invoices_above_avg(uid=uid)
 
 
 @router.get(
-    "/{invoice_id}",
-    status_code=status.HTTP_200_OK,
-    response_model=InvoiceResponse
+    "/{invoice_id}", status_code=status.HTTP_200_OK, response_model=InvoiceResponse
 )
-async def get_one_invoice(
-        invoice: GetterInvoice
-) -> Invoice:
+async def get_one_invoice(invoice: GetterInvoice) -> Invoice:
     return invoice
 
 
 @router.post(
     "/{invoice_id}/pdf",
     status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(invoice_getter)]
+    dependencies=[Depends(invoice_getter)],
 )
 async def invoice_to_pdf(
-        uid: UserID,
-        invoice_id: Annotated[int, Path()]
+    uid: UserID, invoice_id: Annotated[int, Path()]
 ) -> JSONResponse:
-    """ Convert invoice to pdf"""
-    pdf_email_workflow(uid=uid, invoice_id=invoice_id, text="Your invoice in pdf is coming")
+    """Convert invoice to pdf"""
+    pdf_email_workflow(
+        uid=uid, invoice_id=invoice_id, text="Your invoice in pdf is coming"
+    )
 
-    return JSONResponse(status_code=202,
-                        content={
-                            "Message": "We work on your task, it will be take a few minutes to complete your task",
-                        })
+    return JSONResponse(
+        status_code=202,
+        content={
+            "Message": "We work on your task, it will be take a few minutes to complete your task",
+        },
+    )
 
 
 @router.patch(
     "/{invoice_id}/status",
     status_code=status.HTTP_200_OK,
     response_model=InvoiceResponse,
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_user)],
 )
 async def change_status(
-        invoice: GetterInvoice,
-        new_status: Status,
-        invoice_repo: InvoiceCRUDDepends
+    invoice: GetterInvoice, new_status: Status, invoice_repo: InvoiceCRUDDepends
 ) -> Invoice:
 
     await status_change_with_checker(
-        invoice=invoice,
-        new_status=new_status,
-        invoice_repo=invoice_repo
+        invoice=invoice, new_status=new_status, invoice_repo=invoice_repo
     )
     return invoice
 
@@ -265,12 +238,10 @@ async def change_status(
 @router.delete(
     "/{invoice_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(get_current_user_active)]
+    dependencies=[Depends(get_current_user_active)],
 )
 async def delete_draft_invoice(
-        invoice: GetterInvoice,
-        invoice_repo: InvoiceCRUDDepends
+    invoice: GetterInvoice, invoice_repo: InvoiceCRUDDepends
 ) -> None:
 
     await delete_invoice_with_checker(invoice=invoice, invoice_repo=invoice_repo)
-

@@ -16,17 +16,16 @@ INVOICE_EAGER_OPTIONS = (
     selectinload(Invoice.invoice_items),
     selectinload(Invoice.owner),
     selectinload(Invoice.client),
-    selectinload(Invoice.tags)
+    selectinload(Invoice.tags),
 )
 
 
 class InvoiceRepo(BaseRepo):
-
     @staticmethod
     def filtering(
-            stmt: Select[Invoice],
-            client_id: int | None,
-            status: Status | None,
+        stmt: Select[Invoice],
+        client_id: int | None,
+        status: Status | None,
     ) -> Select[Invoice]:
 
         if not client_id is None:
@@ -37,9 +36,7 @@ class InvoiceRepo(BaseRepo):
 
     @staticmethod
     def pagination(
-            stmt: Select[Invoice],
-            limit: int | None,
-            offset: int
+        stmt: Select[Invoice], limit: int | None, offset: int
     ) -> Select[Invoice]:
 
         if not limit is None:
@@ -48,9 +45,9 @@ class InvoiceRepo(BaseRepo):
 
     @staticmethod
     def order_by_logic(
-            stmt: Select[Invoice],
-            order_by: OrderBy | None,
-            order_dir: OrderDir | None,
+        stmt: Select[Invoice],
+        order_by: OrderBy | None,
+        order_dir: OrderDir | None,
     ) -> Select[Invoice]:
 
         if not order_by is None:
@@ -70,35 +67,52 @@ class InvoiceRepo(BaseRepo):
 
     async def create_invoice(self, uid: int, invoice: InvoiceCreate) -> Invoice:
 
-        total_amount = sum(item.total_with_vat for item in invoice.invoice_items)  # rewrite to metod
-        invoice_in_db = Invoice(**invoice.model_dump(exclude={"invoice_items"}), owner_id=uid,
-                                total_amount=total_amount)
+        total_amount = sum(
+            item.total_with_vat for item in invoice.invoice_items
+        )  # rewrite to metod
+        invoice_in_db = Invoice(
+            **invoice.model_dump(exclude={"invoice_items"}),
+            owner_id=uid,
+            total_amount=total_amount,
+        )
         self.db.add(invoice_in_db)
         await self.db.flush()
 
-        await self.db.execute(insert(InvoiceItem)
-                              .values([{"invoice_id": invoice_in_db.id,
-                                        **item.model_dump(exclude={"subtotal", "total_with_vat"})}
-                                       for item in
-                                       invoice.invoice_items]))  #SRP - creating a ivnoiceitems-> invoiceitem repo
+        await self.db.execute(
+            insert(InvoiceItem).values(
+                [
+                    {
+                        "invoice_id": invoice_in_db.id,
+                        **item.model_dump(exclude={"subtotal", "total_with_vat"}),
+                    }
+                    for item in invoice.invoice_items
+                ]
+            )
+        )  # SRP - creating a ivnoiceitems-> invoiceitem repo
         await self.db.commit()
-        result = await self.db.execute(select(Invoice)
-                                       .options(selectinload(Invoice.invoice_items))
-                                       .where(Invoice.id == invoice_in_db.id))
+        result = await self.db.execute(
+            select(Invoice)
+            .options(selectinload(Invoice.invoice_items))
+            .where(Invoice.id == invoice_in_db.id)
+        )
         return result.scalar_one()  # Create and get invoice? SRP problem?
 
     async def get_all_invoices(
-            self,
-            uid: int,
-            client_id: int | None,
-            order_by: OrderBy | None,
-            order_dir: OrderDir | None,
-            status: Status | None,
-            limit: int | None,
-            offset: int
+        self,
+        uid: int,
+        client_id: int | None,
+        order_by: OrderBy | None,
+        order_dir: OrderDir | None,
+        status: Status | None,
+        limit: int | None,
+        offset: int,
     ) -> Sequence[Invoice]:
 
-        stmt = (select(Invoice).options(selectinload(Invoice.invoice_items)).where(Invoice.owner_id == uid))
+        stmt = (
+            select(Invoice)
+            .options(selectinload(Invoice.invoice_items))
+            .where(Invoice.owner_id == uid)
+        )
         stmt = self.filtering(stmt, client_id, status)
         stmt = self.pagination(stmt, limit, offset)
         stmt = self.order_by_logic(stmt, order_by, order_dir)
@@ -109,7 +123,11 @@ class InvoiceRepo(BaseRepo):
         return result
 
     async def a_get_all_invoices(self, uid: int) -> AsyncGenerator[Invoice, None]:
-        result = await self.db.stream(select(Invoice).where(Invoice.owner_id == uid).options(*INVOICE_EAGER_OPTIONS))
+        result = await self.db.stream(
+            select(Invoice)
+            .where(Invoice.owner_id == uid)
+            .options(*INVOICE_EAGER_OPTIONS)
+        )
         invoices = result.scalars()
         async for invoice in invoices:
             yield invoice
@@ -118,18 +136,19 @@ class InvoiceRepo(BaseRepo):
         invoice_result = await self.db.execute(
             select(Invoice)
             .options(*INVOICE_EAGER_OPTIONS)
-            .where(
-                Invoice.id == invoice_id,
-                Invoice.owner_id == uid
-            )
+            .where(Invoice.id == invoice_id, Invoice.owner_id == uid)
         )
         invoice = invoice_result.scalar_one_or_none()
         return invoice
 
-    async def get_invoices_by_id(self, uid: int, invoices_id: set[int]) -> AsyncGenerator[Invoice, None]:
-        stmt = (select(Invoice)
-                .where(Invoice.owner_id == uid, Invoice.id.in_(invoices_id))
-                .options(*INVOICE_EAGER_OPTIONS))
+    async def get_invoices_by_id(
+        self, uid: int, invoices_id: set[int]
+    ) -> AsyncGenerator[Invoice, None]:
+        stmt = (
+            select(Invoice)
+            .where(Invoice.owner_id == uid, Invoice.id.in_(invoices_id))
+            .options(*INVOICE_EAGER_OPTIONS)
+        )
         invoices = await self.db.stream(stmt)
         result = invoices.scalars()
         async for invoice in result:
@@ -141,7 +160,9 @@ class InvoiceRepo(BaseRepo):
             row_id=invoice.id,
             action=Action.update,
             old_value=str(invoice.status),
-            new_value=str(new_status)  # SRP create AuditLog instance not a Invoicerepo responsability
+            new_value=str(
+                new_status
+            ),  # SRP create AuditLog instance not a Invoicerepo responsability
         )
         self.db.add(new_log)
         invoice.status = new_status
@@ -153,49 +174,60 @@ class InvoiceRepo(BaseRepo):
             select(
                 Invoice.status,
                 func.count(Invoice.id).label("count"),
-                func.sum(Invoice.total_amount).label("total"))
+                func.sum(Invoice.total_amount).label("total"),
+            )
             .where(Invoice.owner_id == uid)
-            .group_by(Invoice.status))
+            .group_by(Invoice.status)
+        )
         result = list(raw_result.mappings().all())
 
         return [InvoiceByStatus(**invoice) for invoice in result]
 
     async def update_overdue_invoices(self, uid: int) -> int:
         # Wrong DRY - need a method which only get a overdue invoices, without updates...
-        stmt = (update(Invoice)
-                .where(Invoice.owner_id == uid,
-                       Invoice.due_date < date.today(),
-                       Invoice.status == Status.sent)
-                .values(status=Status.overdue))
+        stmt = (
+            update(Invoice)
+            .where(
+                Invoice.owner_id == uid,
+                Invoice.due_date < date.today(),
+                Invoice.status == Status.sent,
+            )
+            .values(status=Status.overdue)
+        )
         result = await self.db.execute(stmt)
         await self.db.commit()
         return int(result.rowcount)  # type: ignore [attr-defined]
 
     async def invoice_stats(self, uid: int) -> dict[str, Any]:
 
-        main_stmt = (
-            select(func.count(Invoice.id).label("total_invoices"),
-                   coalesce(func.sum(Invoice.total_amount), 0).label("total_revenue")
-                   )
-            .where(Invoice.owner_id == uid)
-        )
+        main_stmt = select(
+            func.count(Invoice.id).label("total_invoices"),
+            coalesce(func.sum(Invoice.total_amount), 0).label("total_revenue"),
+        ).where(Invoice.owner_id == uid)
 
-        sub_stmt = await self.get_sum_by_status(uid)  # DRY_2 get_sum_by_status returned value(almost)
+        sub_stmt = await self.get_sum_by_status(
+            uid
+        )  # DRY_2 get_sum_by_status returned value(almost)
         main_result = await self.db.execute(main_stmt)
         main_row = main_result.one()
 
         return {
             "total_invoices": main_row.total_invoices,
             "total_revenue": main_row.total_revenue,
-            "by_status": [invoice for invoice in sub_stmt]
+            "by_status": [invoice for invoice in sub_stmt],
         }
 
     async def get_invoices_above_avg(self, uid: int) -> list[Invoice]:
 
-        sub_query = (select(func.avg(Invoice.total_amount)).where(Invoice.owner_id == uid)).scalar_subquery()
+        sub_query = (
+            select(func.avg(Invoice.total_amount)).where(Invoice.owner_id == uid)
+        ).scalar_subquery()
 
-        stmt = (select(Invoice).where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
-                .options(selectinload(Invoice.invoice_items)))
+        stmt = (
+            select(Invoice)
+            .where(Invoice.total_amount > sub_query, Invoice.owner_id == uid)
+            .options(selectinload(Invoice.invoice_items))
+        )
 
         row_result = await self.db.execute(stmt)
 

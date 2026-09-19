@@ -5,8 +5,7 @@ from repositories.base_repository import BaseRepo
 
 
 class UserRepo(BaseRepo):
-
-    async def create_user(self, new_user: User)->User:
+    async def create_user(self, new_user: User) -> User:
 
         self.db.add(new_user)
         await self.db.commit()
@@ -14,7 +13,7 @@ class UserRepo(BaseRepo):
 
         return new_user
 
-    async def get_by_email(self, email:str)-> User | None:
+    async def get_by_email(self, email: str) -> User | None:
 
         user = await self.db.execute(select(User).where(User.email == email))
         return user.scalar_one_or_none()

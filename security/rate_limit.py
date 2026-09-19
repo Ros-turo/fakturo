@@ -7,8 +7,8 @@ from dependencies import IPDepends
 from exceptions import RateLimitError
 from logging_config import logger
 
-class LoginAttempt:
 
+class LoginAttempt:
     def __init__(self) -> None:
 
         self.attempt_count: int = 0
@@ -24,7 +24,9 @@ class LoginAttempt:
         self.attempt_count += 1
 
         if self.attempt_count > 2:
-            self.timeout_to = datetime.now(timezone.utc) + timedelta(seconds=2 ** self.attempt_count)
+            self.timeout_to = datetime.now(timezone.utc) + timedelta(
+                seconds=2**self.attempt_count
+            )
 
         return None
 
@@ -32,7 +34,9 @@ class LoginAttempt:
         self.attempt_count = 0
         self.timeout_to = datetime.now(timezone.utc)
 
+
 attempt_logger: dict[str, LoginAttempt] = {}
+
 
 def get_la_inst(ip: IPDepends) -> LoginAttempt:
 
@@ -42,7 +46,9 @@ def get_la_inst(ip: IPDepends) -> LoginAttempt:
 
     return attempt_logger[ip]
 
+
 LADepends = Annotated[LoginAttempt, Depends(get_la_inst)]
+
 
 def check_timeout(inst: LADepends):
     logger.debug(f"Checking timeout for {inst}")

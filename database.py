@@ -1,21 +1,32 @@
 from fastapi import Depends
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+    AsyncSession,
+    AsyncEngine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from typing import Annotated, AsyncGenerator
 from settings import settings
 
-engine: AsyncEngine = create_async_engine(settings.db_url,
-                             pool_size = 2,
-                             max_overflow = 3,
-                             pool_timeout = 30,
-                             pool_recycle = 1800,
-                             pool_pre_ping = True)
+engine: AsyncEngine = create_async_engine(
+    settings.db_url,
+    pool_size=2,
+    max_overflow=3,
+    pool_timeout=30,
+    pool_recycle=1800,
+    pool_pre_ping=True,
+)
 
-SessionLocal =  async_sessionmaker(engine, autoflush= False, autocommit= False,expire_on_commit=False)
+SessionLocal = async_sessionmaker(
+    engine, autoflush=False, autocommit=False, expire_on_commit=False
+)
+
 
 class Base(DeclarativeBase):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     pass
+
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     db = SessionLocal()
@@ -23,5 +34,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db
     finally:
         await db.close()
+
 
 DBSession = Annotated[AsyncSession, Depends(get_db)]

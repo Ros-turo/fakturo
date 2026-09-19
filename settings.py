@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     db_url: str
     test_db_url: str
     secret_key: str
-    algorithm: str = 'HS256'
+    algorithm: str = "HS256"
     access_expire_minutes: int = 30
     refresh_expire_days: int = 15
     redis_host: str
@@ -17,4 +17,4 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
 
 
-settings =Settings() # type:ignore [call-arg]
+settings = Settings()  # type:ignore [call-arg]

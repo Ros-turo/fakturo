@@ -8,8 +8,8 @@ from schemas import ClientResponse
 
 
 async def is_client_in_cache(
-        client_id: int,
-        uid: int,
+    client_id: int,
+    uid: int,
 ) -> str | None:
     key = f"user_{uid}:clients:{client_id}"
     cache_data = await get_cache(key=key)
@@ -17,9 +17,7 @@ async def is_client_in_cache(
 
 
 async def client_cache_getter(
-    client_id: int,
-    uid: int,
-    client_repo: ClientCRUD
+    client_id: int, uid: int, client_repo: ClientCRUD
 ) -> ClientResponse:
 
     cache_data = await is_client_in_cache(client_id=client_id, uid=uid)
@@ -34,35 +32,31 @@ async def client_cache_getter(
     return response
 
 
-async def client_cache_setter(
-        client: ClientResponse,
-        uid: int,
-        ttl:int
-) -> None:
+async def client_cache_setter(client: ClientResponse, uid: int, ttl: int) -> None:
     key = f"user_{uid}:clients:{client.id}"
     value = client.model_dump_json()
     await set_cache(key=key, value=value, ttl=ttl)
 
+
 async def client_cache_deleter(
-        client: Client,
-        uid: int,
-        client_repo: ClientCRUD
+    client: Client, uid: int, client_repo: ClientCRUD
 ) -> None:
     key = f"user_{uid}:clients:{client.id}"
     await client_repo.delete_client(client)
     await delete_cache(key=key)
 
-def ares_parsing(
-        data:dict
-) -> dict[str, Any]:
-    dic = data.get("dic",None)
+
+def ares_parsing(data: dict) -> dict[str, Any]:
+    dic = data.get("dic", None)
     street = data["sidlo"].get("nazevUlice", None)
     house_number = data["sidlo"].get("cisloDomovni", None)
-    return {"name":data["obchodniJmeno"],
-            "ico":data["ico"],
-            "dic": dic,
-            "vat": bool(dic),
-            "city": data["sidlo"]["nazevObce"],
-            "psc":data["sidlo"]["psc"],
-            "street":street,
-            "house_number":house_number}
+    return {
+        "name": data["obchodniJmeno"],
+        "ico": data["ico"],
+        "dic": dic,
+        "vat": bool(dic),
+        "city": data["sidlo"]["nazevObce"],
+        "psc": data["sidlo"]["psc"],
+        "street": street,
+        "house_number": house_number,
+    }

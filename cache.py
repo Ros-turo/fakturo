@@ -3,7 +3,10 @@ from typing import cast
 
 from settings import settings
 
-r = redis.Redis(host=settings.redis_host, port=settings.redis_port, decode_responses=True)
+r = redis.Redis(
+    host=settings.redis_host, port=settings.redis_port, decode_responses=True
+)
+
 
 async def get_cache(key: str) -> str | None:
     response = await r.get(key)
@@ -12,18 +15,20 @@ async def get_cache(key: str) -> str | None:
     else:
         return cast(str, response)
 
+
 async def set_cache(key: str, value: str, ttl: int) -> bool:
-    response = await r.set(key, value, ex = ttl)
+    response = await r.set(key, value, ex=ttl)
     return cast(bool, response)
 
-async def delete_cache(key:str) -> int:
+
+async def delete_cache(key: str) -> int:
     response = await r.delete(key)
     return response
 
 
-async def is_token_in_blacklist(jti:str) -> bool:
+async def is_token_in_blacklist(jti: str) -> bool:
 
-    response = await r.get(f'blacklist:{jti}')
+    response = await r.get(f"blacklist:{jti}")
     if response is None:
         return False
     return True

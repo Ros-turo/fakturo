@@ -7,11 +7,11 @@ from repositories.base_repository import BaseRepo
 
 
 class AuthRepo(BaseRepo):
-
     async def get_refresh_token(self, jti: str) -> RefreshToken | None:
 
-        token_data = await self.db.execute(select(RefreshToken)
-                                           .where(RefreshToken.jti == jti))
+        token_data = await self.db.execute(
+            select(RefreshToken).where(RefreshToken.jti == jti)
+        )
 
         return token_data.scalar_one_or_none()
 
@@ -20,8 +20,7 @@ class AuthRepo(BaseRepo):
         self.db.add(refresh_token)
         await self.db.commit()
 
-
-    async def revoke_token(self, token:RefreshToken) -> None:
+    async def revoke_token(self, token: RefreshToken) -> None:
 
         token.revoked = True
         await self.db.commit()
@@ -32,16 +31,17 @@ class AuthRepo(BaseRepo):
             token.revoked = True
         await self.db.commit()
 
-
     async def delete_token(self, token):
         await self.db.delete(token)
         await self.db.commit()
 
     async def get_actual_tokens(self, uid: int) -> list[RefreshToken]:
         now = datetime.now(UTC)
-        stmt = select(RefreshToken).where(RefreshToken.user_id == uid,
-                                          RefreshToken.revoked == False,
-                                          RefreshToken.expired_at > now)
+        stmt = select(RefreshToken).where(
+            RefreshToken.user_id == uid,
+            RefreshToken.revoked == False,
+            RefreshToken.expired_at > now,
+        )
 
         db_query = await self.db.execute(stmt)
 

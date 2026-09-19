@@ -3,7 +3,6 @@ from logging_config import logger
 
 
 class TimingLoggingMiddleware:
-
     def __init__(self, app):
         self.app = app
 
@@ -31,7 +30,6 @@ class TimingLoggingMiddleware:
 
 
 class CORSMiddleware:
-
     def __init__(self, app, allowed_origins: list[str]) -> None:
         self.app = app
         self.allowed_origins = allowed_origins
@@ -44,7 +42,7 @@ class CORSMiddleware:
 
         site_origin = None
         for header in scope["headers"]:
-            if header[0] == b'origin':
+            if header[0] == b"origin":
                 site_origin = header[1].decode()
 
         if site_origin is None:
@@ -57,24 +55,26 @@ class CORSMiddleware:
                     "status": 403,
                 }
             )
-            await send({
-                "type": "http.response.body",
-                "body": b''
-            })
+            await send({"type": "http.response.body", "body": b""})
             return
 
         site_origin_bytes = site_origin.encode()
 
         if scope["method"] == "OPTIONS":
-            await send({
-                "type": "http.response.start",
-                "status": 200,
-                "headers": [
-                    (b"Access-Control-Allow-Origin", site_origin_bytes),
-                    (b"Access-Control-Allow-Headers", b"*"),
-                    (b"Access-Control-Allow-Methods", b"GET,POST,PUT,DELETE,OPTIONS"),
-                ]
-            })
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 200,
+                    "headers": [
+                        (b"Access-Control-Allow-Origin", site_origin_bytes),
+                        (b"Access-Control-Allow-Headers", b"*"),
+                        (
+                            b"Access-Control-Allow-Methods",
+                            b"GET,POST,PUT,DELETE,OPTIONS",
+                        ),
+                    ],
+                }
+            )
             await send(
                 {
                     "type": "http.response.body",
@@ -92,7 +92,9 @@ class CORSMiddleware:
                 return
             elif message["type"] == "http.response.body":
                 if start:
-                    start["headers"].append((b"Access-Control-Allow-Origin", site_origin_bytes))
+                    start["headers"].append(
+                        (b"Access-Control-Allow-Origin", site_origin_bytes)
+                    )
                     await send(start)
                     start = None
                 await send(message)
@@ -114,19 +116,23 @@ class MaxBodySizeMiddleware:
         body_size = 0
         headers: list[bytes] = scope["headers"]
         for header in headers:
-            if header[0] == b'content-length':
+            if header[0] == b"content-length":
                 body_size = int(header[1])
 
         if body_size > self.max_body_size:
-            await send({
-                "type": "http.response.start",
-                "status": 413,
-                "headers": [(b'content-type', b'application/json')]
-            })
-            await send({
-                "type": "http.response.body",
-                'body': b'{"detail": "Payload too large"}'
-            })
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 413,
+                    "headers": [(b"content-type", b"application/json")],
+                }
+            )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": b'{"detail": "Payload too large"}',
+                }
+            )
             return
 
         await self.app(scope, receive, send)

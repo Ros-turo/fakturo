@@ -13,7 +13,7 @@ def encode_jwt_token(payload: dict[str, Any]) -> str:
     return jwt.encode(payload, settings.secret_key, settings.algorithm)
 
 
-def decode_jwt_token(token:str) -> dict[str, Any]:
+def decode_jwt_token(token: str) -> dict[str, Any]:
 
     try:
         payload = jwt.decode(token, settings.secret_key, settings.algorithm)
@@ -23,7 +23,7 @@ def decode_jwt_token(token:str) -> dict[str, Any]:
     return payload
 
 
-def create_access_token(email:str, uid:int) -> str:
+def create_access_token(email: str, uid: int) -> str:
     """
     ::param user data: email, password
     ::return user's token
@@ -32,28 +32,27 @@ def create_access_token(email:str, uid:int) -> str:
     expire_time = now + timedelta(minutes=30)
     jti = str(uuid4())
     payload = {
-        'sub': email,
-        'jti': jti,
-        'uid': uid,
-        'iat': now,
-        'exp': expire_time,
-        'type': 'access'
+        "sub": email,
+        "jti": jti,
+        "uid": uid,
+        "iat": now,
+        "exp": expire_time,
+        "type": "access",
     }
 
     return encode_jwt_token(payload)
 
-def create_refresh_token(
-        uid:int
-) -> str:
+
+def create_refresh_token(uid: int) -> str:
     now = datetime.now(timezone.utc)
     expire_time = now + timedelta(days=15)
     jti = token_urlsafe(32)
     payload = {
-        'uid': uid,
-        'jti': jti,
-        'iat': now,
-        'exp': expire_time,
-        'type': 'refresh'
+        "uid": uid,
+        "jti": jti,
+        "iat": now,
+        "exp": expire_time,
+        "type": "refresh",
     }
 
     return encode_jwt_token(payload)
@@ -69,7 +68,8 @@ def extract_access_token(request: Request) -> str | None:
     token = value.removeprefix("Bearer ")
     return token
 
-AccessTokenExtractor = Annotated[str|None, Depends(extract_access_token)]
+
+AccessTokenExtractor = Annotated[str | None, Depends(extract_access_token)]
 
 
 def check_refresh_token(expired_at: datetime, revoked: bool) -> bool:

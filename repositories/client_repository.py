@@ -8,13 +8,14 @@ from schemas import ClientUpdate
 
 
 class ClientRepo(BaseRepo):
-
-    async def get_all_clients(self, uid: int)-> list[Client]:
+    async def get_all_clients(self, uid: int) -> list[Client]:
         clients = await self.db.execute(select(Client).where(Client.owner_id == uid))
         return list(clients.scalars().all())
 
-    async def get_one_client(self,uid: int, client_id: int)-> Client | None:
-        client = await self.db.execute(select(Client).where(Client.id ==client_id, Client.owner_id == uid))
+    async def get_one_client(self, uid: int, client_id: int) -> Client | None:
+        client = await self.db.execute(
+            select(Client).where(Client.id == client_id, Client.owner_id == uid)
+        )
         return client.scalar_one_or_none()
 
     async def create_client(self, client: Client) -> Client:

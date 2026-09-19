@@ -12,8 +12,9 @@ from database import Base, get_db
 from routers.auth import get_current_user
 from security.rate_limit import attempt_logger
 
+
 @pytest.fixture(scope="function")
-def user_data() -> dict[str,str]:
+def user_data() -> dict[str, str]:
     return {
         "password": "stringst",
         "email": "user@example.com",
@@ -24,23 +25,25 @@ def user_data() -> dict[str,str]:
         "city": "string",
         "psc": "string",
         "street": "string",
-        "house_number": "string"
+        "house_number": "string",
     }
+
 
 @pytest.fixture(scope="function")
 def valid_client_data() -> dict[str, Any]:
     return {
-      "name": "string",
-      "ico": "91291715",
-      "dic": "SK7082783024",
-      "city": "string",
-      "psc": "string",
-      "street": "string",
-      "house_number": "string",
-      "vat": True,
-      "email": "user@example.com",
-      "phone_number": "170418643"
+        "name": "string",
+        "ico": "91291715",
+        "dic": "SK7082783024",
+        "city": "string",
+        "psc": "string",
+        "street": "string",
+        "house_number": "string",
+        "vat": True,
+        "email": "user@example.com",
+        "phone_number": "170418643",
     }
+
 
 @pytest.fixture(autouse=True)
 def clear_attempt_logger():
@@ -58,6 +61,7 @@ async def engine():
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
+
 @pytest.fixture(scope="function")
 async def db(engine):
     async with engine.connect() as conn:
@@ -73,41 +77,47 @@ async def db(engine):
             if not conn.in_nested_transaction():
                 conn.sync_connection.begin_nested()
 
-
         yield session
         await session.close()
         await conn.rollback()
 
+
 @pytest.fixture(scope="function")
-async def _base_user(db:AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def _base_user(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     def get_override_db() -> Generator[AsyncSession, None, None]:
         yield db
+
     app.user_middleware = []
     app.middleware_stack = None
     app.dependency_overrides[get_db] = get_override_db
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url = "http://test"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
 
 @pytest.fixture(scope="function")
 async def unauthorized_user(_base_user: AsyncClient) -> AsyncClient:
     return _base_user
 
-@pytest.fixture(scope="function")
-async def user(_base_user: AsyncClient, user_data: dict[str, str]) -> AsyncGenerator[AsyncClient, None]:
 
+@pytest.fixture(scope="function")
+async def user(
+    _base_user: AsyncClient, user_data: dict[str, str]
+) -> AsyncGenerator[AsyncClient, None]:
 
     response = await _base_user.post("/auth/register", json=user_data)
-    uid = response.json()['UID']
+    uid = response.json()["UID"]
     app.dependency_overrides[get_current_user] = lambda: {"uid": uid}
     yield _base_user
     app.dependency_overrides.clear()
 
+
 @pytest.fixture(scope="function")
-async def user_with_one_client(user: AsyncClient, valid_client_data: dict[str, Any]) -> AsyncGenerator[tuple[AsyncClient, int], None]:
+async def user_with_one_client(
+    user: AsyncClient, valid_client_data: dict[str, Any]
+) -> AsyncGenerator[tuple[AsyncClient, int], None]:
 
     response = await user.post("/clients/", json=valid_client_data)
     client_data = response.json()
@@ -118,9 +128,9 @@ async def user_with_one_client(user: AsyncClient, valid_client_data: dict[str, A
     yield user, client_id
 
 
-async def register_and_switch_to_new_user(user: AsyncClient,
-                                          user_data: dict[str, str],
-                                          email_suffix: str) -> int:
+async def register_and_switch_to_new_user(
+    user: AsyncClient, user_data: dict[str, str], email_suffix: str
+) -> int:
     new_user_data = {**user_data, "email": f"{email_suffix}_{user_data['email']}"}
     new_user = await user.post("/auth/register", json=new_user_data)
     new_user_id = new_user.json()["UID"]

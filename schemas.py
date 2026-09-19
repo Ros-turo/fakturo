@@ -3,7 +3,15 @@ from datetime import date, datetime
 from enum import Enum
 
 from decimal import Decimal
-from pydantic import BaseModel, Field, EmailStr, ConfigDict, model_validator, field_validator, computed_field
+from pydantic import (
+    BaseModel,
+    Field,
+    EmailStr,
+    ConfigDict,
+    model_validator,
+    field_validator,
+    computed_field,
+)
 
 
 class Status(str, Enum):
@@ -12,25 +20,31 @@ class Status(str, Enum):
     paid = "paid"
     overdue = "overdue"
 
-STATUS_MAP: dict[Status, set[Status]] = \
-    {Status.draft:{Status.sent, Status.paid,Status.overdue},
-     Status.sent:{Status.paid,Status.overdue},
-     Status.paid:set(),
-     Status.overdue:{Status.sent, Status.paid},}
+
+STATUS_MAP: dict[Status, set[Status]] = {
+    Status.draft: {Status.sent, Status.paid, Status.overdue},
+    Status.sent: {Status.paid, Status.overdue},
+    Status.paid: set(),
+    Status.overdue: {Status.sent, Status.paid},
+}
+
 
 class Action(str, Enum):
     update = "UPDATE"
     insert = "INSERT"
     delete = "DELETE"
 
+
 class OrderBy(str, Enum):
     created_at = "created_at"
     issue_date = "issue_date"
     due_date = "due_date"
 
+
 class OrderDir(str, Enum):
     ascended = "asc"
     descended = "desc"
+
 
 class VatRate(int, Enum):
     basic = 21
@@ -49,20 +63,21 @@ class ClientDefault(BaseModel):
 
     model_config = ConfigDict(coerce_numbers_to_str=True, from_attributes=True)
 
+
 class ClientAres(ClientDefault):
     pass
 
-class ClientCreate(ClientDefault):
 
+class ClientCreate(ClientDefault):
     email: EmailStr | None = None
     phone_number: Annotated[str | None, Field(pattern=r"^\d{9}$")] = None
 
-class ClientResponse(ClientCreate):
 
+class ClientResponse(ClientCreate):
     id: int
 
-class ClientUpdate(BaseModel):
 
+class ClientUpdate(BaseModel):
     name: str | None = None
     dic: Annotated[str | None, Field(pattern=r"(CZ|SK)(\d{8}|\d{10})")] = None
     city: str | None = None
@@ -72,23 +87,22 @@ class ClientUpdate(BaseModel):
     email: EmailStr | None = None
     phone_number: Annotated[str | None, Field(pattern=r"^\d{9}$")] = None
 
-class InvoiceItemCreate(BaseModel):
 
+class InvoiceItemCreate(BaseModel):
     description: str
     unit_price: Decimal
     quantity: Decimal
     vat_rate: VatRate
 
-
-    @computed_field # type: ignore [prop-decorator]
+    @computed_field  # type: ignore [prop-decorator]
     @property
     def subtotal(self) -> Decimal:
-        return round(self.unit_price*self.quantity, 2)
+        return round(self.unit_price * self.quantity, 2)
 
-    @computed_field # type: ignore [prop-decorator]
+    @computed_field  # type: ignore [prop-decorator]
     @property
     def total_with_vat(self) -> Decimal:
-        return round((self.subtotal*(1+Decimal(self.vat_rate/100))), 2)
+        return round((self.subtotal * (1 + Decimal(self.vat_rate / 100))), 2)
 
 
 class InvoiceItemResponse(InvoiceItemCreate):
@@ -97,21 +111,22 @@ class InvoiceItemResponse(InvoiceItemCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class InvoiceBase(BaseModel):
     invoice_number: str
     issue_date: Annotated[date, Field(default_factory=date.today)]
     due_date: Annotated[date, Field()]
     client_id: Annotated[int, Field(ge=1)]
 
-class InvoiceCreate(InvoiceBase):
 
+class InvoiceCreate(InvoiceBase):
     invoice_items: list[InvoiceItemCreate]
 
     @field_validator("due_date")
     @classmethod
     def due_date_not_in_past(cls, value: date) -> date:
         if value < date.today():
-            raise ValueError("Due date cannot be in the past" )
+            raise ValueError("Due date cannot be in the past")
         return value
 
     @model_validator(mode="after")
@@ -131,12 +146,14 @@ class InvoiceResponse(InvoiceBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class InvoiceByStatus(BaseModel):
     status: Status
     count: int
     total: Decimal
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class InvoiceStats(BaseModel):
     total_invoices: int
@@ -147,17 +164,16 @@ class InvoiceStats(BaseModel):
 
 
 class OrderQuery(BaseModel):
-
     order_by: OrderBy | None
     order_dir: OrderDir | None
 
-class PaginationQuery(BaseModel):
 
+class PaginationQuery(BaseModel):
     limit: Annotated[int | None, Field(gt=0)] = None
     offset: int = 0
 
-class UserCreate(BaseModel):
 
+class UserCreate(BaseModel):
     password: Annotated[str, Field(min_length=8)]
     email: EmailStr
     name: str
@@ -169,14 +185,14 @@ class UserCreate(BaseModel):
     street: str
     house_number: str
 
-class BulkPDFResponse(BaseModel):
 
+class BulkPDFResponse(BaseModel):
     status: str
     denied_ids: set[int]
     created_count: int
     size: int
 
-class RefreshTokensResponse(BaseModel):
 
+class RefreshTokensResponse(BaseModel):
     jti: str
     expired_at: datetime

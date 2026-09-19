@@ -9,4 +9,5 @@ def get_ip_address(request: Request) -> str:
         return "Unknown"
     return user.host
 
+
 IPDepends = Annotated[str, Depends(get_ip_address)]
