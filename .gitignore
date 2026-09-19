@@ -9,7 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-not_git.py
+not-git
 
 # Virtual environment
 .venv/
