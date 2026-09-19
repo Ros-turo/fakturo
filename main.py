@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from database import engine
-from middleware import TimingLoggingMiddleware, CORSMiddleware
+from middleware import TimingLoggingMiddleware, CORSMiddleware, MaxBodySizeMiddleware
 from routers import clients, auth, invoices
 from exceptions import ARESNotAvailableError, AuthError,  FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
 from exception_handlers import (ares_not_available_handler, business_rule_handler, conflict_handler, invalid_credentials_handler,
@@ -31,6 +31,7 @@ app = FastAPI(lifespan=lifespan)
 #2 Inner wrapper
 app.add_middleware(TimingLoggingMiddleware)
 app.add_middleware(CORSMiddleware)
+app.add_middleware(MaxBodySizeMiddleware)
 #1 Global wrapper
 
 app.include_router(clients.router)
