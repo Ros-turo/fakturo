@@ -44,18 +44,11 @@ async def status_change_with_checker(
         invoice: Invoice,
         new_status: Status,
         invoice_repo: InvoiceCRUD
-) -> Invoice:
+) -> None:
 
     valid_status_change(old_status=invoice.status, new_status=new_status)
     await invoice_repo.change_invoice_status(invoice=invoice, new_status=new_status)
-    invoice_with_new_status = await invoice_repo.get_one_invoice(uid=invoice.owner_id, invoice_id=invoice.id)
-    if invoice_with_new_status is None:
-        raise InvoiceConflict(
-            f"Invoice with id {Invoice.id} already exists, "
-            f"if you don`t delete it, please change your password and contact us"
-        )
 
-    return invoice_with_new_status
 
 async def get_invoice_json(invoices: AsyncGenerator[Invoice, None]) -> AsyncGenerator[str, None]:
     async for invoice in invoices:

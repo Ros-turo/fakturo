@@ -122,7 +122,7 @@ async def get_invoices(
         order: OrderQueryDepends,
         client_id: Annotated[int | None, Query()] = None,
         status: Annotated[Status | None, Query()] = None,
-):
+) -> Sequence[Invoice]:
     responses = await invoice_repo.get_all_invoices(uid=uid,
                                                     client_id=client_id,
                                                     order_by=order.order_by,
@@ -254,12 +254,12 @@ async def change_status(
         invoice_repo: InvoiceCRUDDepends
 ) -> Invoice:
 
-    invoice_with_updated_status = await status_change_with_checker(
+    await status_change_with_checker(
         invoice=invoice,
         new_status=new_status,
         invoice_repo=invoice_repo
     )
-    return invoice_with_updated_status
+    return invoice
 
 
 @router.delete(
