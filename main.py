@@ -10,7 +10,7 @@ from routers import clients, auth, invoices
 from exceptions import ARESNotAvailableError, AuthError,  FakturoNotFoundError, FakturoDeleteError, FakturoConflictError, BusinessRuleError
 from exception_handlers import (ares_not_available_handler, business_rule_handler, conflict_handler, invalid_credentials_handler,
                                 not_found_handler, cant_delete_handler)
-
+from settings import settings
 
 
 @asynccontextmanager
@@ -30,7 +30,7 @@ app = FastAPI(lifespan=lifespan)
 
 #2 Inner wrapper
 app.add_middleware(TimingLoggingMiddleware)
-app.add_middleware(CORSMiddleware)
+app.add_middleware(CORSMiddleware, allowed_origins=settings.allowed_origins)
 app.add_middleware(MaxBodySizeMiddleware)
 #1 Global wrapper
 
