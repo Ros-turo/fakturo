@@ -29,6 +29,41 @@ class TimingLoggingMiddleware:
         logger.info(f"Request {method}, {path}, {status_code} is {timing}")
 
 
+class SlowRequestMiddleware:
+    def __init__(self, app, threshold: float) -> None:
+        self.app = app
+        self.threshold = threshold
+
+    async def __call__(self, scope: dict, receive, send) -> None:
+
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        method = scope["method"]
+
+        start = time.perf_counter()
+        finish = None
+
+        async def send_wrapper(message):
+            nonlocal finish
+            if message["type"] == "http.response.start":
+                finish = time.perf_counter()
+
+                message["headers"].append((b"X-Response-Time", str(finish - start).encode()))
+
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+        if not finish is None:
+            request_duration = finish - start
+
+            if request_duration > self.threshold:
+                logger.warning(f"{method}, {path}, takes {request_duration} seconds")
+
+
 class CORSMiddleware:
     def __init__(self, app, allowed_origins: list[str]) -> None:
         self.app = app
