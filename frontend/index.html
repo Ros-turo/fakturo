@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="cs">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Fakturo</title>
+    </head>
+    <body>
+        <header>
+            <h1>Fakturo</h1>
+            <nav>
+                <a href="#">Faktury</a>
+                <a href="#">Nová faktura</a>
+            </nav>
+        </header>
+        <main>
+            <section>
+                <h2>Nová faktura</h2>
+                <form>
+                    <div>
+                        <label for="client_id">Odběratel</label>
+                        <input type="number" id="client_id" name="client_id" required> <!-- placeholder for clients api-->
+                    </div>
+                    <div>
+                        <label for="issue_date">Datum vystavení</label>
+                        <input type="date" id="issue_date" name="issue_date" required>
+                    </div>
+                    <div>
+                        <label for="overdue_date">Datum splatnosti</label>
+                        <input type="date" id="overdue_date" name="overdue_date" required>
+                    </div>
+                    <fieldset>
+                        <legend>Položka faktury</legend>
+                        <div>
+                            <label for="description">Název položky</label>
+                            <input type="text" name="description" id="description" required>
+                        </div>
+                        <div>
+                            <label for="unit_price">Cena jednoho kusu</label>
+                            <input type="number" name="unit_price" id="unit_price" required min="1" step="0.01">
+                        </div>
+                        <div>
+                            <label for="quantity">Počet kusů</label>
+                            <input type="number" name="quantity" id="quantity" required min="1">
+                        </div>
+                        <div>
+                            <label for="vat_rate">Procento DPH</label>
+                            <select name="vat_rate" id="vat_rate">
+                                <option value="21">21%</option>
+                                <option value="12">12%</option>
+                                <option value="0">0%</option>
+                            </select>
+                        </div>
+                    </fieldset>
+                    <div>
+                        <label for="send_client_email">Odeslat e-mailem odběrateli</label>
+                        <input type="checkbox" id="send_client_email" name="send_client_email">
+                    </div>
+                    <div>
+                        <button type="submit">Odeslat fakturu</button>
+                    </div>
+
+                </form>
+            </section>
+        </main>
+        <footer>
+            <p>Copyright</p>
+        </footer>
+    </body>
+</html>
