@@ -71,70 +71,78 @@ class CORSMiddleware:
 
     async def __call__(self, scope: dict, receive, send):
 
-        if scope["type"] != "http":
+        request_type = scope["type"]
+        if request_type != "http":
             await self.app(scope, receive, send)
             return
 
-        site_origin = None
-        for header in scope["headers"]:
-            if header[0] == b"origin":
-                site_origin = header[1].decode()
+        headers = scope["headers"]
+        method = scope["method"]
 
+        site_origin = self.get_site_origin(headers)
         if site_origin is None:
             await self.app(scope, receive, send)
             return
         elif site_origin not in self.allowed_origins:
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": 403,
-                }
-            )
-            await send({"type": "http.response.body", "body": b""})
+            await self.block_request(send)
             return
 
         site_origin_bytes = site_origin.encode()
 
-        if scope["method"] == "OPTIONS":
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": 200,
-                    "headers": [
-                        (b"Access-Control-Allow-Origin", site_origin_bytes),
-                        (b"Access-Control-Allow-Headers", b"*"),
-                        (
-                            b"Access-Control-Allow-Methods",
-                            b"GET,POST,PUT,DELETE,OPTIONS",
-                        ),
-                    ],
-                }
-            )
-            await send(
-                {
-                    "type": "http.response.body",
-                    "body": b"",
-                }
-            )
+        if method == "OPTIONS":
+            await self.method_options(site_origin_bytes, send)
             return
 
-        start = None
-
         async def send_wrapper(message):
-            nonlocal start
             if message["type"] == "http.response.start":
-                start = message
-                return
+                message["headers"].append(
+                        (b"Access-Control-Allow-Origin", site_origin_bytes))
+                await send(message)
             elif message["type"] == "http.response.body":
-                if start:
-                    start["headers"].append(
-                        (b"Access-Control-Allow-Origin", site_origin_bytes)
-                    )
-                    await send(start)
-                    start = None
                 await send(message)
 
         await self.app(scope, receive, send_wrapper)
+
+    @staticmethod
+    async def method_options(site_origin_bytes, send):
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"Access-Control-Allow-Origin", site_origin_bytes),
+                    (b"Access-Control-Allow-Headers", b"*"),
+                    (
+                        b"Access-Control-Allow-Methods",
+                        b"GET,POST,PUT,DELETE,OPTIONS",
+                    ),
+                ],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"",
+            }
+        )
+
+    @staticmethod
+    def get_site_origin(headers: list[tuple]) -> str | None:
+        site_origin = None
+        for header in headers:
+            if header[0] == b"origin":
+                site_origin = header[1].decode()
+        return site_origin
+
+    @staticmethod
+    async def block_request(send) -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 403,
+            }
+        )
+        await send({"type": "http.response.body", "body": b""})
 
 
 class MaxBodySizeMiddleware:
