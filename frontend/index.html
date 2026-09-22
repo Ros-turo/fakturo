@@ -4,10 +4,12 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Fakturo</title>
+        <link rel="stylesheet" href="style.css">
+        <link rel="shortcut icon" href="images/favicon.ico" type="image/x-icon">
     </head>
     <body>
         <header>
-            <h1>Fakturo</h1>
+            <img id="Fakturo_logo" src="images/favicon-512x512.png" alt="Fakturo">
             <nav>
                 <a href="#">Faktury</a>
                 <a href="#">Nová faktura</a>
@@ -17,33 +19,34 @@
             <section>
                 <h2>Nová faktura</h2>
                 <form>
-                    <div>
+
+                    <div class="invoice_create">
                         <label for="client_id">Odběratel</label>
-                        <input type="number" id="client_id" name="client_id" required> <!-- placeholder for clients api-->
+                        <input type="number" id="client_id" name="client_id" required min="1"> <!-- placeholder for clients api-->
                     </div>
-                    <div>
+                    <div class="invoice_create">
                         <label for="issue_date">Datum vystavení</label>
                         <input type="date" id="issue_date" name="issue_date" required>
                     </div>
-                    <div>
+                    <div class="invoice_create">
                         <label for="overdue_date">Datum splatnosti</label>
                         <input type="date" id="overdue_date" name="overdue_date" required>
                     </div>
-                    <fieldset>
+                    <fieldset id="invoice_item">
                         <legend>Položka faktury</legend>
-                        <div>
+                        <div class="invoice_create">
                             <label for="description">Název položky</label>
                             <input type="text" name="description" id="description" required>
                         </div>
-                        <div>
+                        <div class="invoice_create">
                             <label for="unit_price">Cena jednoho kusu</label>
                             <input type="number" name="unit_price" id="unit_price" required min="1" step="0.01">
                         </div>
-                        <div>
+                        <div class="invoice_create">
                             <label for="quantity">Počet kusů</label>
                             <input type="number" name="quantity" id="quantity" required min="1">
                         </div>
-                        <div>
+                        <div class="invoice_create">
                             <label for="vat_rate">Procento DPH</label>
                             <select name="vat_rate" id="vat_rate">
                                 <option value="21">21%</option>
@@ -52,7 +55,7 @@
                             </select>
                         </div>
                     </fieldset>
-                    <div>
+                    <div class="invoice_create" id="send_client_email_div">
                         <label for="send_client_email">Odeslat e-mailem odběrateli</label>
                         <input type="checkbox" id="send_client_email" name="send_client_email">
                     </div>
