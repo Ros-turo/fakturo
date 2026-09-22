@@ -1,0 +1,146 @@
+* {
+    box-sizing: border-box;
+}
+
+
+header {
+    background: linear-gradient(
+    to right bottom,
+    #EF4444,
+    #8a9da4,
+    #9198e5
+    );
+    color: #1F2937;
+    width: 100%;
+    border-top: 3px solid #dd8484;
+    border-left: 3px solid #bc8081;
+    border-bottom: 3px solid #3d5b61;
+    border-right: 3px solid #334a4a;
+    border-radius: 5px;
+    padding: 1rem;
+}
+
+nav {
+    padding-top: 1rem;
+}
+nav a{
+    text-decoration-line: none;
+    margin: 10px;
+    color: #494287;
+
+    &:hover{
+        color: #1F2937;
+    }
+}
+
+#Fakturo_logo{
+    width: 8rem;
+
+    &:hover{
+        transform: scale(1.1);
+        transition-duration: 0.3s;
+        transition-timing-function: ease-out;
+    }
+}
+body {
+    font-family: sans-serif;
+    background: linear-gradient(
+            to bottom,
+            #e66465,
+            #8a9da4,
+            #9198e5
+    );
+    margin: 10px;
+}
+
+
+
+section h2 {
+    max-width: 500px;
+    color: #1F2937;
+    text-align: center;
+    margin: 2rem auto 1.2rem;
+    border: 3px solid ;
+    border-radius: 5px;
+
+}
+
+form{
+    max-width: 500px;
+    margin: auto;
+    text-align: center;
+}
+
+.invoice_create {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    text-align: left;
+}
+
+.invoice_create label {
+    width: 30%;
+}
+
+.invoice_create input {
+    flex: 1 0 auto;
+}
+
+input {
+    border: 1px solid rgb(72 61 139 / 0.76);
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+    width: 50%;
+
+    &:focus {
+        border: 1px solid rgb(72 61 139 / 0.76);
+    }
+}
+
+select {
+    border: 1px solid rgb(72 61 139 / 0.76);
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+}
+
+#send_client_email_div{
+    display: flex;
+    justify-content: center;
+}
+
+#send_client_email{
+    max-width: 20px;
+
+}
+
+
+#invoice_item {
+    border: 2px solid;
+    border-radius: 5px;
+    border-color: rgb(72 61 139 / 0.76);
+    padding: 10px;
+    text-align: left;
+
+    &:hover{
+    border-color: #1F2937;
+    transition-duration: 1s;
+    }
+}
+
+button{
+    cursor: pointer;
+    width: 200px;
+    height: 40px;
+    margin-top: 10px;
+    border: 2px solid #483d8b;
+
+    &:hover{
+        transform: scale(110%);
+        transition-duration: 1s;
+        background-color: #adb1c6;
+        color: #1F2937;
+    }
+}
+
