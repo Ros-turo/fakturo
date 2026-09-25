@@ -11,14 +11,14 @@
         <header>
             <img id="Fakturo_logo" src="images/favicon-512x512.png" alt="Fakturo">
             <nav>
-                <a href="#">Faktury</a>
+                <a href="invoices.html">Faktury</a>
                 <a href="#">Nová faktura</a>
             </nav>
         </header>
         <main>
             <section>
                 <h2>Nová faktura</h2>
-                <form>
+                <form id="invoice_create_form">
 
                     <div class="invoice_create">
                         <label for="client_id">Odběratel</label>
@@ -55,7 +55,7 @@
                             </select>
                         </div>
                     </fieldset>
-                    <div class="invoice_create" id="send_client_email_div">
+                    <div class="invoice_create">
                         <label for="send_client_email">Odeslat e-mailem odběrateli</label>
                         <input type="checkbox" id="send_client_email" name="send_client_email">
                     </div>
