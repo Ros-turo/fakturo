@@ -81,7 +81,10 @@ form{
 }
 
 .invoice_create label {
-    width: 30%;
+    flex: 1 1 30%;
+    max-height: 1.7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .invoice_create input {
@@ -95,8 +98,9 @@ input {
     width: 50%;
 
     &:focus {
-        border: 1px solid rgb(72 61 139 / 0.76);
+        border: 1px solid rgb(197 49 5 / 0.83);
     }
+
 }
 
 select {
