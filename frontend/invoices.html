@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoices</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" href="images/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <header>
+        <img id="Fakturo_logo" src="images/favicon-512x512.png" alt="Fakturo">
+        <nav>
+            <a href="invoices.html">Faktury</a>
+            <a href="index.html">Nová faktura</a>
+        </nav>
+    </header>
+    <main>
+    <div id="invoices_main_grid">
+        <aside id="filters_sidebar">
+            <h4>Filtry</h4>
+            <div class="filter">
+                <label for="client_id">Faktury dle klienta: </label>
+                <input type="client_id" id="client_id" name="client_id" min="1">
+            </div>
+            <div class="filter">
+                <label for="status">Status faktury</label>
+                <select name="status" id="status">
+                    <option value="draft">draft</option>
+                    <option value="sent">sent</option>
+                    <option value="paid">paid</option>
+                    <option value="overdue">overdue</option>
+                </select>
+            </div>
+        </aside>
+        <div id="invoices-articles">
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+            <article class="invoice">
+                <p>Číslo faktury: </p>
+                <p>Odběratel: </p>
+                <p>Částka: </p>
+                <p>Stav: </p>
+            </article>
+        </div>
+    </div>
+    </main>
+    <footer>
+        <p>Copyright</p>
+    </footer>
+
+</body>
+</html>

@@ -2,6 +2,16 @@
     box-sizing: border-box;
 }
 
+body {
+    font-family: sans-serif;
+    background: linear-gradient(
+            to bottom,
+            #e66465,
+            #8a9da4,
+            #9198e5
+    );
+    margin: 0;
+}
 
 header {
     background: linear-gradient(
@@ -42,16 +52,6 @@ nav a{
         transition-timing-function: ease-out;
     }
 }
-body {
-    font-family: sans-serif;
-    background: linear-gradient(
-            to bottom,
-            #e66465,
-            #8a9da4,
-            #9198e5
-    );
-    margin: 10px;
-}
 
 
 
@@ -65,7 +65,7 @@ section h2 {
 
 }
 
-form{
+#invoice_create_form{
     max-width: 500px;
     margin: auto;
     text-align: center;
@@ -89,9 +89,6 @@ form{
 
 .invoice_create input {
     flex: 1 0 auto;
-}
-
-input {
     border: 1px solid rgb(72 61 139 / 0.76);
     border-radius: 5px;
     margin-bottom: 0.5rem;
@@ -103,20 +100,15 @@ input {
 
 }
 
+.invoice_create input[type="checkbox"]{
+    justify-self: left;
+    flex: 0 1 30px;
+}
+
 select {
     border: 1px solid rgb(72 61 139 / 0.76);
     border-radius: 5px;
     margin-bottom: 0.5rem;
-}
-
-#send_client_email_div{
-    display: flex;
-    justify-content: center;
-}
-
-#send_client_email{
-    max-width: 20px;
-
 }
 
 
@@ -133,7 +125,7 @@ select {
     }
 }
 
-button{
+#invoice_create_form button{
     cursor: pointer;
     width: 200px;
     height: 40px;
@@ -148,3 +140,76 @@ button{
     }
 }
 
+
+
+/*Invoices.html*/
+body {
+    overflow: auto;
+}
+#invoices_main_grid{
+    display: block;
+
+}
+
+#filters_sidebar{
+    position: sticky;
+    top: 5px;
+    border: 2px solid black;
+    padding: 4px;
+    background: linear-gradient(#9198e5, #4c4f77);
+}
+
+#filters_sidebar h4{
+    text-align: center;
+    margin: 5px;
+    border-bottom: 2px solid #232323;
+}
+
+.filter{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    input {
+        flex: 0 1 30%;
+        min-width: 30%;
+
+    }
+    label{
+        flex: 1 0 70%;
+    }
+}
+
+.invoice {
+    border: 1px solid black;
+    border-top: 2px solid darkgrey;
+    border-bottom: 2px solid #4c4f77;
+    border-radius: 5px;
+    margin: 5px;
+    padding: 5px;
+}
+
+
+@media (min-width: 700px)
+{
+    #invoices_main_grid{
+        display: grid;
+        grid-template-columns: 1fr 3fr;
+    }
+
+    #filters_sidebar{
+        display: block;
+        flex-flow: column wrap;
+        top:5px;
+        overflow: scroll;
+    }
+
+    .filter{
+        display: inline-block;
+        margin: 5px;
+        border-bottom: 1px solid black;
+        border-top: 1px solid black;
+        border-radius: 4px;
+        padding-bottom: 5px;
+    }
+}
