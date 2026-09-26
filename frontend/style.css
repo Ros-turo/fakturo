@@ -1,3 +1,6 @@
+:root {
+    --border-color: #1F2937
+}
 * {
     box-sizing: border-box;
 }
@@ -53,15 +56,26 @@ nav a{
     }
 }
 
-
-
+section{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 3rem auto;
+    border: 3px solid var(--border-color);
+    border-radius: 50px;
+    padding: 2rem;
+    max-width: max-content;
+}
 section h2 {
-    max-width: 500px;
+    width: 100%;
     color: #1F2937;
     text-align: center;
-    margin: 2rem auto 1.2rem;
-    border: 3px solid ;
-    border-radius: 5px;
+    margin: 2rem 1.2rem;
+    margin-top: 0.5rem;
+    border: 3px solid var(--border-color);
+    border-radius: 30px;
+    padding: 0.5rem;
 
 }
 
@@ -113,6 +127,7 @@ select {
 
 
 #invoice_item {
+    margin: 1rem;
     border: 2px solid;
     border-radius: 5px;
     border-color: rgb(72 61 139 / 0.76);
@@ -143,18 +158,17 @@ select {
 
 
 /*Invoices.html*/
-body {
-    overflow: auto;
-}
 #invoices_main_grid{
-    display: block;
+
 
 }
 
 #filters_sidebar{
     position: sticky;
     top: 5px;
+    margin: 2px;
     border: 2px solid black;
+    border-radius: 5px;
     padding: 4px;
     background: linear-gradient(#9198e5, #4c4f77);
 }
@@ -167,17 +181,9 @@ body {
 
 .filter{
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 1rem;
     align-items: center;
-
-    input {
-        flex: 0 1 30%;
-        min-width: 30%;
-
-    }
-    label{
-        flex: 1 0 70%;
-    }
 }
 
 .invoice {
@@ -195,21 +201,34 @@ body {
     #invoices_main_grid{
         display: grid;
         grid-template-columns: 1fr 3fr;
+        overflow: visible;
     }
 
     #filters_sidebar{
         display: block;
-        flex-flow: column wrap;
-        top:5px;
-        overflow: scroll;
+        position: sticky;
+        top: 5px;
+        align-self: start;
+
     }
 
     .filter{
-        display: inline-block;
+        display: flex;
+        justify-content: space-between;
+        flex-flow: row nowrap;
         margin: 5px;
         border-bottom: 1px solid black;
         border-top: 1px solid black;
         border-radius: 4px;
         padding-bottom: 5px;
+
+        input {
+            flex: 1 1 70%;
+            min-width: 50%;
+        }
+
+        label {
+            flex: 1 1 30%;
+        }
     }
 }
