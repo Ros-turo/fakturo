@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str = "HS256"
     access_expire_minutes: int = 30
-    refresh_expire_days: int = 15
+    refresh_expire_seconds: int = 15*24*60*60
     redis_host: str
     redis_port: int = 6379
 

@@ -28,6 +28,7 @@ from services.auth_service import (
     get_refresh_token_instance,
     get_refresh_token_payload, extract_access_token,
 )
+from settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -63,7 +64,7 @@ async def token_sender(
         value=refresh_token,
         httponly=True,
         samesite="strict",
-        max_age=14 * 24 * 60 * 60,
+        max_age=settings.refresh_expire_seconds,
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
