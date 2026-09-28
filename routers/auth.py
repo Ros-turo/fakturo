@@ -11,6 +11,7 @@ from exceptions import (
     DeviceNotFoundError,
     EmailExistError,
     InvalidCredentialsError,
+    InvalidTokenError,
     RefreshTokenNotFoundError,
     SessionInBlacklistError,
     UserInactiveError,
@@ -22,9 +23,10 @@ from security.hashing import hash_password, verify_password
 from security.rate_limit import LADepends, check_timeout
 from security.tokens import check_refresh_token, decode_jwt_token
 from services.auth_service import (
-    blacklist_token,
+    blacklist_access_token,
     create_token_tuple,
-    get_refresh_token_payload,
+    get_refresh_token_instance,
+    get_refresh_token_payload, extract_access_token,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -181,22 +183,19 @@ async def token_refresh(request: Request, response: Response, auth_repo: AuthDep
     return content
 
 
-@router.post("/logout", dependencies=[Depends(blacklist_token)])
-async def logout(request: Request, auth_repo: AuthDepends, response: Response):
+AccessTokenExtractor = Annotated[str | None, Depends(extract_access_token)]
 
+@router.post("/logout")
+async def logout(request: Request, auth_repo: AuthDepends, response: Response, access_token:AccessTokenExtractor):
+
+    await blacklist_access_token(access_token)
     try:
-        payload = get_refresh_token_payload(request=request)
+        refresh_token = await get_refresh_token_instance(request, auth_repo)
+    except (RefreshTokenNotFoundError, InvalidTokenError):
+        return {"status": "logout"}
 
-    except RefreshTokenNotFoundError:
-        payload = None
-
-    if payload:
-        jti = payload["jti"]
-        token_data = await auth_repo.get_refresh_token(jti=jti)
-
-        if token_data is not None:
-            await auth_repo.revoke_token(token_data)
-            response.delete_cookie("refresh_token")
+    await auth_repo.revoke_token(refresh_token)
+    response.delete_cookie("refresh_token")
 
     return {"status": "logout"}
 

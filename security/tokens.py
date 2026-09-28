@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 from uuid import uuid4
-from typing import Annotated, Any
+from typing import Any
 from jose import jwt, JWTError
-from fastapi import Request, Depends
 
 from exceptions import InvalidTokenError, ExpiredTokenError, RevokedTokenError
 from settings import settings
@@ -56,21 +55,6 @@ def create_refresh_token(uid: int) -> str:
     }
 
     return encode_jwt_token(payload)
-
-
-def extract_access_token(request: Request) -> str | None:
-
-    value = request.headers.get("Authorization")
-
-    if value is None:
-        return None
-
-    token = value.removeprefix("Bearer ")
-    return token
-
-
-AccessTokenExtractor = Annotated[str | None, Depends(extract_access_token)]
-
 
 def check_refresh_token(expired_at: datetime, revoked: bool) -> bool:
 

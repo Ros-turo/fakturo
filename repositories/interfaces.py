@@ -75,3 +75,6 @@ class InvoiceBatch(Protocol):
 
 class RefreshTokenWriter(Protocol):
     async def post_refresh_token(self, refresh_token: RefreshToken) -> None: ...
+
+class RefreshTokenGetter(Protocol):
+    async def get_refresh_token(self, jti: str) -> RefreshToken | None: ...

@@ -1,14 +1,13 @@
 from datetime import datetime, timezone
 import time
-from typing import Annotated, Any
-from fastapi import Depends, Request
+from typing import Any
+from starlette.requests import Request
 
 from cache import set_cache
 from db_models import RefreshToken
 from exceptions import RefreshTokenNotFoundError, InvalidTokenError
-from repositories.interfaces import RefreshTokenWriter
+from repositories.interfaces import RefreshTokenGetter, RefreshTokenWriter
 from security.tokens import (
-    AccessTokenExtractor,
     create_refresh_token,
     decode_jwt_token,
     create_access_token,
@@ -46,13 +45,10 @@ async def create_token_tuple(
     return access_token, refresh_token
 
 
-async def blacklist_token(token: AccessTokenExtractor) -> None:
+async def blacklist_access_token(token: str | None) -> None:
 
     if token:
         await add_token_to_blacklist(token)
-
-
-AddTokenBlacklist = Annotated[None, Depends(blacklist_token)]
 
 
 def get_refresh_token_payload(request: Request) -> dict[str, Any]:
@@ -63,7 +59,22 @@ def get_refresh_token_payload(request: Request) -> dict[str, Any]:
 
     payload = decode_jwt_token(token)
 
+    if payload["type"] != "refresh":
+        raise InvalidTokenError()
+
     return payload
+
+
+async def get_refresh_token_instance(request: Request, refresh_token_repo: RefreshTokenGetter) -> RefreshToken:
+
+    payload = get_refresh_token_payload(request=request)
+    jti = payload["jti"]
+    refresh_token = await refresh_token_repo.get_refresh_token(jti)
+    if refresh_token is None:
+        raise RefreshTokenNotFoundError()
+
+    return refresh_token
+
 
 
 async def add_token_to_blacklist(token: str) -> None:
@@ -78,3 +89,14 @@ async def add_token_to_blacklist(token: str) -> None:
     if ttl > 0:
         await set_cache(key=f"blacklist:{jti}", value="1", ttl=ttl)
     return None
+
+
+def extract_access_token(request: Request) -> str | None:
+
+    value = request.headers.get("Authorization")
+
+    if value is None:
+        return None
+
+    token = value.removeprefix("Bearer ")
+    return token
