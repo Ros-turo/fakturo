@@ -189,6 +189,9 @@ select {
     padding: 5px;
 }
 
+.paid{
+    background-color: green;
+}
 
 @media (min-width: 700px)
 {
